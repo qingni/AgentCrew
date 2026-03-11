@@ -210,7 +210,10 @@ struct PipelineFlowchartView: View {
         ForEach(Array(waves.enumerated()), id: \.offset) { waveIndex, _ in
             Text("Wave \(waveIndex + 1)")
                 .font(.caption.bold())
-                .foregroundStyle(.tertiary)
+                .foregroundStyle(.blue)
+                .padding(.horizontal, 8)
+                .padding(.vertical, 3)
+                .background(.blue.opacity(0.1).gradient, in: Capsule())
                 .fixedSize()
                 .position(
                     x: FlowLayout.leftMargin / 2,

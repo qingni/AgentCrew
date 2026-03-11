@@ -65,6 +65,27 @@ struct ContentView: View {
         .sheet(item: $editingPipeline) { pipeline in
             EditPipelineSheet(pipeline: pipeline)
         }
+        .overlay {
+            if vm.showFlowchart, let pipeline = vm.selectedPipeline {
+                ZStack {
+                    Color.black.opacity(0.45)
+                        .ignoresSafeArea()
+                        .onTapGesture { vm.showFlowchart = false }
+
+                    PipelineFlowchartView(pipeline: pipeline)
+                        .environmentObject(vm)
+                        .frame(maxWidth: 780, maxHeight: 600)
+                        .background(.ultraThickMaterial, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                        .overlay {
+                            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                                .stroke(.separator, lineWidth: 0.5)
+                        }
+                        .shadow(color: .black.opacity(0.35), radius: 20, y: 8)
+                }
+                .transition(.opacity)
+                .animation(.easeInOut(duration: 0.2), value: vm.showFlowchart)
+            }
+        }
     }
 
     // MARK: - Sidebar

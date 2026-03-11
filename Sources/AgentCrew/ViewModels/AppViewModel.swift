@@ -26,6 +26,7 @@ final class AppViewModel: ObservableObject {
     @Published var currentWave = 0
     @Published var isStopRequested = false
     @Published var stageStopRequests: Set<UUID> = []
+    @Published var showFlowchart = false
 
     @Published var llmConfig = LLMConfig.defaultAgent
     @Published var isPlanningInProgress = false
