@@ -7,6 +7,7 @@ struct PipelineEditorView: View {
     @State private var newStageMode: ExecutionMode = .parallel
     @State private var showAddStage = false
     @State private var showEditPipeline = false
+    @State private var showFlowchart = false
 
     private var isPipelineExecuting: Bool {
         vm.isPipelineExecuting(pipeline.id)
@@ -63,6 +64,10 @@ struct PipelineEditorView: View {
         .navigationTitle(pipeline.name)
         .sheet(isPresented: $showAddStage) { addStageSheet }
         .sheet(isPresented: $showEditPipeline) { EditPipelineSheet(pipeline: pipeline) }
+        .sheet(isPresented: $showFlowchart) {
+            PipelineFlowchartView(pipeline: pipeline)
+                .environmentObject(vm)
+        }
     }
 
     // MARK: - Header
@@ -94,6 +99,16 @@ struct PipelineEditorView: View {
                         .font(.caption)
                         .foregroundStyle(.orange)
                 }
+
+                Button {
+                    showFlowchart = true
+                } label: {
+                    Label("Flowchart", systemImage: "point.3.connected.trianglepath.dotted")
+                }
+                .buttonStyle(.bordered)
+                .tint(.blue)
+                .disabled(pipeline.allSteps.isEmpty)
+                .help("Show execution flowchart (wave-based DAG)")
 
                 Button {
                     showEditPipeline = true
