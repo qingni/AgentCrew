@@ -62,6 +62,7 @@ struct PipelineFlowchartView: View {
     @EnvironmentObject var vm: AppViewModel
 
     @State private var hoveredNodeID: UUID?
+    @State private var lockedNodeID: UUID?
 
     private var waves: [[ResolvedStep]] {
         computeWaves(from: pipeline)
@@ -127,6 +128,18 @@ struct PipelineFlowchartView: View {
         return CGSize(width: max(w, 500), height: max(h, 300))
     }
 
+    private var highlightedNodeID: UUID? {
+        lockedNodeID ?? hoveredNodeID
+    }
+
+    private var focusHintText: String {
+        if let lockedNodeID,
+           let name = nodes.first(where: { $0.id == lockedNodeID })?.name {
+            return "Path locked on '\(name)'. Click node again to unlock."
+        }
+        return "Hover a node to inspect dependencies. Click a node to lock path highlighting."
+    }
+
     var body: some View {
         VStack(spacing: 0) {
             header
@@ -142,11 +155,45 @@ struct PipelineFlowchartView: View {
                         waveLabelsLayer
                     }
                     .frame(width: canvasSize.width, height: canvasSize.height)
+                    .onContinuousHover { phase in
+                        switch phase {
+                        case .active(let location):
+                            if lockedNodeID == nil {
+                                hoveredNodeID = hoveredNode(at: location)
+                            }
+                        case .ended:
+                            if lockedNodeID == nil {
+                                hoveredNodeID = nil
+                            }
+                        }
+                    }
+                    .highPriorityGesture(SpatialTapGesture().onEnded { value in
+                        let tappedNode = hoveredNode(at: value.location)
+                        if let tappedNode {
+                            if lockedNodeID == tappedNode {
+                                lockedNodeID = nil
+                            } else {
+                                lockedNodeID = tappedNode
+                            }
+                            hoveredNodeID = tappedNode
+                        } else {
+                            lockedNodeID = nil
+                            hoveredNodeID = nil
+                        }
+                    })
                     .padding(20)
                 }
             }
         }
         .frame(minWidth: 700, idealWidth: 960, minHeight: 560, idealHeight: 780)
+        .onChange(of: nodes.map(\.id)) { _, ids in
+            if let lockedNodeID, !ids.contains(lockedNodeID) {
+                self.lockedNodeID = nil
+            }
+            if let hoveredNodeID, !ids.contains(hoveredNodeID) {
+                self.hoveredNodeID = nil
+            }
+        }
     }
 
     // MARK: - Header
@@ -163,6 +210,9 @@ struct PipelineFlowchartView: View {
                 Text("\(pipeline.name) — \(waves.count) waves, \(nodes.count) steps")
                     .font(.caption)
                     .foregroundStyle(.secondary)
+                Text(focusHintText)
+                    .font(.caption2)
+                    .foregroundStyle(lockedNodeID == nil ? Color.secondary : Color.cyan)
             }
 
             Spacer()
@@ -246,9 +296,9 @@ struct PipelineFlowchartView: View {
                     control2: CGPoint(x: endPoint.x, y: midY)
                 )
 
-                let isHighlighted = hoveredNodeID == edge.from || hoveredNodeID == edge.to
-                let strokeColor = isHighlighted ? Color.blue : (edge.isImplicit ? Color.secondary.opacity(0.35) : Color.secondary.opacity(0.55))
-                let lineWidth: CGFloat = isHighlighted ? 2.5 : 1.5
+                let isHighlighted = highlightedNodeID == edge.from || highlightedNodeID == edge.to
+                let strokeColor = isHighlighted ? Color.cyan : (edge.isImplicit ? Color.secondary.opacity(0.35) : Color.secondary.opacity(0.55))
+                let lineWidth: CGFloat = isHighlighted ? 3.0 : 1.5
 
                 context.stroke(
                     path,
@@ -294,12 +344,9 @@ struct PipelineFlowchartView: View {
             if let pos = positionMap[node.id] {
                 FlowNodeView(
                     node: node,
-                    isHovered: hoveredNodeID == node.id
+                    isHovered: highlightedNodeID == node.id
                 )
                 .position(x: pos.x, y: pos.y)
-                .onHover { isHovered in
-                    hoveredNodeID = isHovered ? node.id : nil
-                }
             }
         }
     }
@@ -321,6 +368,23 @@ struct PipelineFlowchartView: View {
 
     private func latestStepStatus(_ stepID: UUID) -> StepStatus? {
         vm.latestStepStatus(pipelineID: pipeline.id, stepID: stepID)
+    }
+
+    private func hoveredNode(at location: CGPoint) -> UUID? {
+        let positions = nodePositionMap()
+        for node in nodes.reversed() {
+            guard let center = positions[node.id] else { continue }
+            let rect = CGRect(
+                x: center.x - FlowLayout.nodeWidth / 2,
+                y: center.y - FlowLayout.nodeHeight / 2,
+                width: FlowLayout.nodeWidth,
+                height: FlowLayout.nodeHeight
+            )
+            if rect.contains(location) {
+                return node.id
+            }
+        }
+        return nil
     }
 }
 

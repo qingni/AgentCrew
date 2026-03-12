@@ -28,7 +28,9 @@ final class AppViewModel: ObservableObject {
     @Published var stageStopRequests: Set<UUID> = []
     @Published var showFlowchart = false
 
-    @Published var llmConfig = LLMConfig.defaultAgent
+    @Published var llmConfig = LLMConfig.defaultAgent {
+        didSet { saveLLMConfig() }
+    }
     @Published var isPlanningInProgress = false
     @Published var planningError: String?
     @Published var planningPhase: PlanningPhase?
@@ -88,7 +90,10 @@ final class AppViewModel: ObservableObject {
 
     // MARK: - Init
 
-    init() { loadPipelines() }
+    init() {
+        loadPipelines()
+        loadLLMConfig()
+    }
 
     // MARK: - Pipeline CRUD
 
@@ -568,12 +573,35 @@ final class AppViewModel: ObservableObject {
         }
     }
 
-    private static var pipelinesFileURL: URL {
+    private func saveLLMConfig() {
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+        guard let data = try? encoder.encode(llmConfig) else { return }
+        try? data.write(to: Self.llmConfigFileURL)
+    }
+
+    private func loadLLMConfig() {
+        guard let data = try? Data(contentsOf: Self.llmConfigFileURL) else { return }
+        let decoder = JSONDecoder()
+        if let config = try? decoder.decode(LLMConfig.self, from: data) {
+            llmConfig = config
+        }
+    }
+
+    private static var appSupportDirectoryURL: URL {
         let dir = FileManager.default
             .urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
             .appendingPathComponent("AgentCrew", isDirectory: true)
         try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
-        return dir.appendingPathComponent("pipelines.json")
+        return dir
+    }
+
+    private static var pipelinesFileURL: URL {
+        appSupportDirectoryURL.appendingPathComponent("pipelines.json")
+    }
+
+    private static var llmConfigFileURL: URL {
+        appSupportDirectoryURL.appendingPathComponent("llm-config.json")
     }
 
     // MARK: - Lock / Run history helpers

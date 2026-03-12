@@ -115,15 +115,21 @@ struct PlannedStep: Codable, Sendable {
 
 struct LLMConfig: Codable, Sendable {
     var model: String
+    var customPolicy: String
 
-    static let defaultAgent = LLMConfig(model: "opus-4.6")
+    static let defaultAgent = LLMConfig(
+        model: "opus-4.6",
+        customPolicy: ""
+    )
 
-    init(model: String) {
+    init(model: String, customPolicy: String = "") {
         self.model = model
+        self.customPolicy = customPolicy
     }
 
     private enum CodingKeys: String, CodingKey {
         case model
+        case customPolicy
         // Legacy keys kept for backward decode compatibility.
         case apiKey
         case baseURL
@@ -132,10 +138,12 @@ struct LLMConfig: Codable, Sendable {
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         self.model = try container.decodeIfPresent(String.self, forKey: .model) ?? Self.defaultAgent.model
+        self.customPolicy = try container.decodeIfPresent(String.self, forKey: .customPolicy) ?? ""
     }
 
     func encode(to encoder: Encoder) throws {
         var container = encoder.container(keyedBy: CodingKeys.self)
         try container.encode(model, forKey: .model)
+        try container.encode(customPolicy, forKey: .customPolicy)
     }
 }

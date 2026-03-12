@@ -41,7 +41,11 @@ final class AIPlanner: @unchecked Sendable {
         onLog: (@Sendable (String) -> Void)? = nil
     ) async throws -> Pipeline {
         onPhaseUpdate?(.preparingContext)
-        let prompt = Self.buildPlannerPrompt(userPrompt: request.userPrompt, tools: request.availableTools)
+        let prompt = Self.buildPlannerPrompt(
+            userPrompt: request.userPrompt,
+            tools: request.availableTools,
+            customPolicy: config.customPolicy
+        )
         let model = config.model.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
             ? LLMConfig.defaultAgent.model
             : config.model.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -123,8 +127,29 @@ final class AIPlanner: @unchecked Sendable {
 
     // MARK: - Prompt
 
-    private static func buildPlannerPrompt(userPrompt: String, tools: [ToolType]) -> String {
+    static func builtInPromptPreview(tools: [ToolType] = ToolType.allCases) -> String {
+        buildPlannerPrompt(
+            userPrompt: "{{task_description}}",
+            tools: tools,
+            customPolicy: ""
+        )
+    }
+
+    private static func buildPlannerPrompt(
+        userPrompt: String,
+        tools: [ToolType],
+        customPolicy: String
+    ) -> String {
         let toolList = tools.map(\.rawValue).joined(separator: ", ")
+        let trimmedPolicy = customPolicy.trimmingCharacters(in: .whitespacesAndNewlines)
+        let policySection = trimmedPolicy.isEmpty
+            ? ""
+            : """
+
+            Additional planning policy (user-defined):
+            \(trimmedPolicy)
+            """
+
         return """
         You are an AI pipeline planner.
         Given a user's task description, generate a structured pipeline as JSON.
@@ -137,6 +162,13 @@ final class AIPlanner: @unchecked Sendable {
         - claude: Optional alternative for analysis/review, but not the default.
 
         Typical pattern: codex for initial coding, cursor for code review, and codex for verify/fix.
+
+        Planning quality requirements:
+        - Ground all major decisions in the repository context; avoid generic assumptions.
+        - For non-trivial tasks, include an early analysis/design step that compares 2-3 candidate approaches aligned with mainstream best practices for the detected stack, then proceed with the recommended path.
+        - Decompose adaptively by complexity: simple tasks should stay concise (often 1-3 steps), and complex tasks should split only when dependencies, risk, or validation needs justify it.
+        - Each step prompt should ask for concrete file-level actions and verification.
+        \(policySection)
 
         Respond with ONLY a valid JSON object (no markdown fences, no prose) in this format:
         {
@@ -164,7 +196,8 @@ final class AIPlanner: @unchecked Sendable {
         2. Use parallel mode when steps are independent.
         3. Use sequential mode when order matters within a stage.
         4. Default to codex for coding and verify/fix, and cursor for code review.
-        5. Write clear, detailed prompts for each step.
+        5. Keep plan size proportional to complexity; avoid over-decomposition.
+        6. Write clear, detailed prompts for each step.
 
         User task:
         \(userPrompt)

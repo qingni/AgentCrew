@@ -705,6 +705,7 @@ private struct SettingsSheet: View {
     @State private var detectionResults: [CLIProfileManager.DetectionResult] = []
     @State private var isDetecting = false
     @State private var recommendedProfile: CLIProfile?
+    @State private var showPolicyEditor = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -806,6 +807,30 @@ private struct SettingsSheet: View {
                 VStack(alignment: .leading, spacing: 8) {
                     TextField("Default Model", text: $vm.llmConfig.model)
                         .textFieldStyle(.roundedBorder)
+
+                    HStack {
+                        Text("Customize planner policy when needed.")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                        Spacer()
+                        Button("Edit Prompt Policy…") {
+                            showPolicyEditor = true
+                        }
+                        .controlSize(.small)
+                    }
+
+                    if trimmedCustomPolicy.isEmpty {
+                        Text("Using built-in planning policy.")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                    } else {
+                        Text("Custom policy enabled")
+                            .font(.caption2.bold())
+                        Text(trimmedCustomPolicy)
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(2)
+                    }
                 }
                 .padding(8)
             }
@@ -819,6 +844,9 @@ private struct SettingsSheet: View {
         .padding(24)
         .frame(width: 480)
         .task { await runDetection() }
+        .sheet(isPresented: $showPolicyEditor) {
+            PlanningPolicyEditorSheet(customPolicy: customPolicyBinding)
+        }
     }
 
     @ViewBuilder
@@ -836,6 +864,17 @@ private struct SettingsSheet: View {
                 .foregroundStyle(.secondary)
             Spacer()
         }
+    }
+
+    private var customPolicyBinding: Binding<String> {
+        Binding(
+            get: { vm.llmConfig.customPolicy },
+            set: { vm.llmConfig.customPolicy = $0 }
+        )
+    }
+
+    private var trimmedCustomPolicy: String {
+        vm.llmConfig.customPolicy.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     private func runDetection() async {

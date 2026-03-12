@@ -66,6 +66,32 @@ struct AutoPlannerSheet: View {
             }
             .disabled(vm.isPlanningInProgress)
 
+            GroupBox("Planning Policy") {
+                VStack(alignment: .leading, spacing: 8) {
+                    if trimmedCustomPolicy.isEmpty {
+                        Text("Current prompt: built-in planner prompt only.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        Text("To customize it, go to Settings > AI Pipeline Generator > Edit Prompt Policy...")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                    } else {
+                        Text("Current prompt: built-in planner prompt + custom policy from Settings.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        Text("Edit path: Settings > AI Pipeline Generator > Edit Prompt Policy...")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                        Text(trimmedCustomPolicy)
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(3)
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .disabled(vm.isPlanningInProgress)
+
             if showProgressPanel {
                 planningProgressPanel
             }
@@ -139,6 +165,10 @@ struct AutoPlannerSheet: View {
 
     private var existingProjects: [AppViewModel.ProjectGroup] {
         vm.projectGroups.filter { !$0.workingDirectory.isEmpty }
+    }
+
+    private var trimmedCustomPolicy: String {
+        vm.llmConfig.customPolicy.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     private var targetWorkingDirectory: String {
@@ -285,6 +315,102 @@ private struct PlanningPhaseRow: View {
         case .pending: .secondary
         case .running: .blue
         case .completed: .green
+        }
+    }
+}
+
+struct PlanningPolicyEditorSheet: View {
+    @Binding var customPolicy: String
+    @Environment(\.dismiss) private var dismiss
+    @State private var draftPolicy: String = ""
+    @State private var showBuiltInPrompt = false
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            Text("Edit Planning Policy")
+                .font(.title3.bold())
+            Text("This policy is appended to the planner prompt. Keep it concise and outcome-focused.")
+                .font(.callout)
+                .foregroundStyle(.secondary)
+
+            TextEditor(text: $draftPolicy)
+                .font(.body)
+                .frame(minHeight: 220)
+                .padding(6)
+                .background(.quaternary.opacity(0.35), in: RoundedRectangle(cornerRadius: 8))
+
+            HStack {
+                Button("Reset to Built-in") {
+                    draftPolicy = ""
+                }
+                Button("View Built-in Prompt") {
+                    showBuiltInPrompt = true
+                }
+                Spacer()
+                Button("Cancel") { dismiss() }
+                    .keyboardShortcut(.cancelAction)
+                Button("Save") {
+                    customPolicy = draftPolicy.trimmingCharacters(in: .whitespacesAndNewlines)
+                    dismiss()
+                }
+                .keyboardShortcut(.defaultAction)
+            }
+        }
+        .padding(20)
+        .frame(minWidth: 560, minHeight: 360)
+        .onAppear {
+            draftPolicy = customPolicy
+        }
+        .sheet(isPresented: $showBuiltInPrompt) {
+            BuiltInPlannerPromptSheet(promptText: AIPlanner.builtInPromptPreview())
+        }
+    }
+}
+
+private struct BuiltInPlannerPromptSheet: View {
+    let promptText: String
+    @Environment(\.dismiss) private var dismiss
+    @State private var didCopy = false
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Built-in Planner Prompt")
+                .font(.title3.bold())
+            Text("Read-only reference. This is the built-in planner prompt used before your custom policy is appended.")
+                .font(.callout)
+                .foregroundStyle(.secondary)
+
+            ScrollView {
+                Text(promptText)
+                    .font(.system(.caption, design: .monospaced))
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .textSelection(.enabled)
+            }
+            .padding(8)
+            .background(.quaternary.opacity(0.35), in: RoundedRectangle(cornerRadius: 8))
+
+            HStack {
+                Button(didCopy ? "Copied" : "Copy") {
+                    copyPromptToClipboard()
+                }
+                .controlSize(.small)
+                Spacer()
+                Button("Close") { dismiss() }
+                    .keyboardShortcut(.defaultAction)
+            }
+        }
+        .padding(20)
+        .frame(minWidth: 760, minHeight: 520)
+    }
+
+    private func copyPromptToClipboard() {
+        let pasteboard = NSPasteboard.general
+        pasteboard.clearContents()
+        _ = pasteboard.setString(promptText, forType: .string)
+        didCopy = true
+        Task {
+            try? await Task.sleep(nanoseconds: 1_200_000_000)
+            await MainActor.run { didCopy = false }
         }
     }
 }
