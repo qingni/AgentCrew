@@ -704,6 +704,7 @@ private struct SettingsSheet: View {
 
     @State private var detectionResults: [CLIProfileManager.DetectionResult] = []
     @State private var isDetecting = false
+    @State private var recommendedProfile: CLIProfile?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -766,6 +767,30 @@ private struct SettingsSheet: View {
                         }
                     }
 
+                    if let recommended = recommendedProfile,
+                       recommended.id != profileManager.activeProfile.id {
+                        HStack(spacing: 8) {
+                            Image(systemName: "exclamationmark.triangle.fill")
+                                .foregroundStyle(.orange)
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("Detected environment mismatch")
+                                    .font(.caption.bold())
+                                Text("Your system has **\(recommended.name)** tools, but the current environment is set to **\(profileManager.activeProfile.name)**.")
+                                    .font(.caption2)
+                                    .foregroundStyle(.secondary)
+                            }
+                            Spacer()
+                            Button("Switch to \(recommended.name)") {
+                                withAnimation { profileManager.selectProfile(recommended) }
+                            }
+                            .controlSize(.small)
+                            .buttonStyle(.borderedProminent)
+                            .tint(.orange)
+                        }
+                        .padding(8)
+                        .background(Color.orange.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+                    }
+
                     ForEach(ToolType.allCases) { tool in
                         cliToolRow(tool)
                     }
@@ -815,9 +840,10 @@ private struct SettingsSheet: View {
 
     private func runDetection() async {
         isDetecting = true
-        let (results, _) = await profileManager.detectEnvironment()
+        let (results, recommended) = await profileManager.detectEnvironment()
         withAnimation(.easeInOut(duration: 0.3)) {
             detectionResults = results
+            recommendedProfile = recommended
             isDetecting = false
         }
     }
