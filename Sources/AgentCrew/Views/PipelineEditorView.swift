@@ -32,11 +32,10 @@ struct PipelineEditorView: View {
             pipelineHeader
             Divider()
 
-            VSplitView {
-                if pipeline.stages.isEmpty {
-                    emptyState
-                        .frame(minHeight: 220)
-                } else {
+            if pipeline.stages.isEmpty {
+                emptyState
+            } else {
+                VSplitView {
                     ScrollView {
                         LazyVStack(alignment: .leading, spacing: 16) {
                             ForEach(pipeline.stages) { stage in
@@ -53,10 +52,10 @@ struct PipelineEditorView: View {
                         .padding()
                     }
                     .frame(minHeight: 220)
-                }
 
-                ExecutionMonitorView(pipeline: pipeline)
-                    .frame(minHeight: 220, idealHeight: 360)
+                    ExecutionMonitorView(pipeline: pipeline)
+                        .frame(minHeight: 220, idealHeight: 360)
+                }
             }
         }
         .navigationTitle(pipeline.name)
@@ -188,40 +187,73 @@ struct PipelineEditorView: View {
     // MARK: - Empty state
 
     private var emptyState: some View {
-        VStack(spacing: 20) {
+        VStack(spacing: 28) {
+            Spacer()
+
             Image(systemName: "rectangle.stack.badge.plus")
-                .font(.system(size: 44))
-                .foregroundStyle(.secondary)
+                .font(.system(size: 52))
+                .foregroundStyle(.blue.gradient)
 
-            Text("Build Your Pipeline")
-                .font(.title3.bold())
+            VStack(spacing: 8) {
+                Text("Build Your Pipeline")
+                    .font(.title2.bold())
 
-            Text("A pipeline has **Stages**, each containing **Steps**.\nStages run top-to-bottom. Steps within a stage run either in parallel or sequentially.")
-                .font(.callout)
-                .foregroundStyle(.secondary)
-                .multilineTextAlignment(.center)
-                .frame(maxWidth: 420)
-
-            VStack(alignment: .leading, spacing: 8) {
-                Label("**Parallel stage**: all steps run at the same time", systemImage: "arrow.triangle.branch")
-                    .font(.caption)
-                Label("**Sequential stage**: steps run one after another", systemImage: "arrow.down")
-                    .font(.caption)
+                Text("A pipeline has **Stages**, each containing **Steps**.\nStages run top-to-bottom. Steps within a stage run\neither in parallel or sequentially.")
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+                    .frame(maxWidth: 440)
             }
-            .padding()
-            .background(.quaternary.opacity(0.5), in: RoundedRectangle(cornerRadius: 8))
 
-            Button("Load Demo Template", systemImage: "doc.badge.plus") {
-                vm.loadDemoTemplate(into: pipeline.id)
-            }
-            .buttonStyle(.borderedProminent)
+            HStack(spacing: 24) {
+                VStack(spacing: 6) {
+                    Image(systemName: "arrow.triangle.branch")
+                        .font(.title3)
+                        .foregroundStyle(.blue)
+                    Text("Parallel")
+                        .font(.caption.bold())
+                    Text("All steps run\nat the same time")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                        .multilineTextAlignment(.center)
+                }
+                .frame(width: 120)
+                .padding(.vertical, 12)
+                .background(.quaternary.opacity(0.4), in: RoundedRectangle(cornerRadius: 10))
 
-            Button("Add Empty Stage Instead") {
-                showAddStage = true
+                VStack(spacing: 6) {
+                    Image(systemName: "arrow.down")
+                        .font(.title3)
+                        .foregroundStyle(.orange)
+                    Text("Sequential")
+                        .font(.caption.bold())
+                    Text("Steps run one\nafter another")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                        .multilineTextAlignment(.center)
+                }
+                .frame(width: 120)
+                .padding(.vertical, 12)
+                .background(.quaternary.opacity(0.4), in: RoundedRectangle(cornerRadius: 10))
             }
-            .buttonStyle(.link)
+
+            VStack(spacing: 10) {
+                Button("Load Demo Template", systemImage: "doc.badge.plus") {
+                    vm.loadDemoTemplate(into: pipeline.id)
+                }
+                .buttonStyle(.borderedProminent)
+                .controlSize(.large)
+
+                Button("Add Empty Stage") {
+                    showAddStage = true
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.regular)
+            }
+
+            Spacer()
         }
-        .frame(maxHeight: .infinity)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .padding()
     }
 
@@ -438,7 +470,6 @@ private struct StageCard: View {
                     let stepNumber = stage.steps.count + 1
                     let step = PipelineStep(
                         name: "Step \(stepNumber)",
-                        command: ToolType.codex.defaultCommandTemplate(),
                         prompt: ""
                     )
                     vm.addStep(to: stage.id, in: pipelineID, step: step)
@@ -588,23 +619,36 @@ private struct StepRow: View {
     private var isSelected: Bool { vm.selectedStepID == step.id }
 
     var body: some View {
-        let displayTool = step.displayTool
+        let tool = step.displayTool ?? step.tool
 
         HStack(spacing: 8) {
-            Image(systemName: displayTool?.iconName ?? "terminal")
-                .foregroundStyle(displayTool?.tintColor ?? .secondary)
+            Image(systemName: tool.iconName)
+                .foregroundStyle(tool.tintColor)
                 .frame(width: 20)
 
             VStack(alignment: .leading, spacing: 1) {
-                Text(step.name).lineLimit(1)
-                    .font(.callout)
-                if let secondaryText = secondaryText {
-                    Text(secondaryText)
+                HStack(spacing: 6) {
+                    Text(step.name).lineLimit(1)
+                        .font(.callout)
+                    Text(tool.displayName)
+                        .font(.caption2.bold())
+                        .foregroundStyle(tool.tintColor)
+                        .padding(.horizontal, 5)
+                        .padding(.vertical, 1)
+                        .background(tool.tintColor.opacity(0.12), in: Capsule())
+                    if let model = step.model, !model.isEmpty {
+                        Text(model)
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                if !step.prompt.isEmpty {
+                    Text(String(step.prompt.prefix(60)))
                         .font(.caption2)
                         .foregroundStyle(.secondary)
                         .lineLimit(1)
                 } else {
-                    Text("Click to set command or prompt \u{2192}")
+                    Text("Click to set prompt \u{2192}")
                         .font(.caption2)
                         .foregroundStyle(.orange)
                 }
@@ -635,16 +679,6 @@ private struct StepRow: View {
         )
         .contentShape(Rectangle())
         .onTapGesture { vm.selectedStepID = step.id }
-    }
-
-    private var secondaryText: String? {
-        if !step.prompt.isEmpty {
-            return String(step.prompt.prefix(60))
-        }
-        if step.hasCustomCommand {
-            return String(step.effectiveCommand.prefix(60))
-        }
-        return nil
     }
 
     @ViewBuilder

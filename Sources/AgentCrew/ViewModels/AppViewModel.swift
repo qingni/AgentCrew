@@ -767,25 +767,21 @@ final class AppViewModel: ObservableObject {
     private func makeDemoTemplate() -> (stages: [PipelineStage], initialStepID: UUID) {
         let codingA = PipelineStep(
             name: "Implement feature A",
-            command: ToolType.codex.defaultCommandTemplate(),
             prompt: "Implement the user login form with email and password fields.",
             tool: .codex
         )
         let codingB = PipelineStep(
             name: "Implement feature B",
-            command: ToolType.codex.defaultCommandTemplate(),
             prompt: "Implement the user registration form with validation.",
             tool: .codex
         )
         let review = PipelineStep(
             name: "Code review",
-            command: ToolType.cursor.defaultCommandTemplate(),
             prompt: "Review all changed files for bugs, security issues, and code style.",
             tool: .cursor
         )
         let verify = PipelineStep(
             name: "Verify & fix",
-            command: ToolType.codex.defaultCommandTemplate(),
             prompt: "Run the project, fix any compilation errors or test failures.",
             tool: .codex
         )

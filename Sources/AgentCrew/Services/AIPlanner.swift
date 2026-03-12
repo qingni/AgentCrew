@@ -29,7 +29,7 @@ enum PlannerError: Error, LocalizedError {
 
 // MARK: - AIPlanner
 
-/// Calls local `agent` CLI to decompose a natural-language task
+/// Calls a configured CLI to decompose a natural-language task
 /// description into a structured `Pipeline`.
 final class AIPlanner: @unchecked Sendable {
     private let cli = CLIRunner()
@@ -46,14 +46,23 @@ final class AIPlanner: @unchecked Sendable {
             ? LLMConfig.defaultAgent.model
             : config.model.trimmingCharacters(in: .whitespacesAndNewlines)
 
+        let profile = ProfileStore.current()
+        let plannerConfig = profile.planner
+        let args = plannerConfig.buildArguments(
+            prompt: prompt,
+            model: model,
+            workingDirectory: request.workingDirectory
+        )
+
         let result: CLIResult
         do {
             onPhaseUpdate?(.invokingAgentCLI)
             onPhaseUpdate?(.generatingStructure)
             result = try await cli.run(
-                command: "agent",
-                arguments: ["--trust", "--model", model, "-p", prompt],
+                command: plannerConfig.executable,
+                arguments: args,
                 workingDirectory: request.workingDirectory,
+                stdinData: plannerConfig.promptMode == .stdin ? prompt.data(using: .utf8) : nil,
                 timeout: 600,
                 onOutputChunk: { chunk in
                     guard let onLog else { return }

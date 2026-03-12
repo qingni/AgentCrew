@@ -57,7 +57,6 @@ struct PlanResponse: Codable, Sendable {
                 let step = PipelineStep(
                     id: stepID,
                     name: plannedStep.name,
-                    command: resolvedTool.defaultCommandTemplate(model: plannedStep.model),
                     prompt: plannedStep.prompt,
                     tool: resolvedTool,
                     model: plannedStep.model,

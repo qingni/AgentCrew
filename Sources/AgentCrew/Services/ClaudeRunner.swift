@@ -1,9 +1,6 @@
 import Foundation
 
-/// Runs a pipeline step via the Anthropic Claude CLI.
-///
-/// Command pattern:
-///   claude --print --permission-mode bypassPermissions --add-dir <dir> < prompt
+/// Runs a pipeline step via the Claude CLI, configured through CLIProfile.
 struct ClaudeRunner: ToolRunner {
     let toolType: ToolType = .claude
     private let cli = CLIRunner()
@@ -14,19 +11,18 @@ struct ClaudeRunner: ToolRunner {
         shouldTerminate: (@Sendable () async -> Bool)?,
         onOutputChunk: (@Sendable (String) -> Void)?
     ) async throws -> StepResult {
-        var args = [
-            "--print",
-            "--permission-mode", "bypassPermissions",
-            "--add-dir", workingDirectory,
-        ]
-        if let model = step.model {
-            args += ["--model", model]
-        }
+        let config = ProfileStore.current().config(for: .claude)
+        let args = config.buildArguments(
+            prompt: step.prompt,
+            model: step.model,
+            workingDirectory: workingDirectory
+        )
 
         let result = try await cli.run(
-            command: "claude",
+            command: config.executable,
             arguments: args,
-            stdinData: step.prompt.data(using: .utf8),
+            workingDirectory: workingDirectory,
+            stdinData: config.promptMode == .stdin ? step.prompt.data(using: .utf8) : nil,
             shouldTerminate: shouldTerminate,
             onOutputChunk: onOutputChunk
         )

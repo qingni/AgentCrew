@@ -6,13 +6,10 @@ import Foundation
 /// inlined into the command. Otherwise the prompt is sent to stdin.
 struct CommandRunner: Sendable {
     private let cli = CLIRunner()
-    private let resolvableExecutables: Set<String> = [
-        "codex-internal",
-        "claude-internal",
-        "agent",
-        "codex",
-        "claude",
-    ]
+
+    private var resolvableExecutables: Set<String> {
+        ProfileStore.current().allExecutables
+    }
 
     func execute(
         step: PipelineStep,
@@ -20,7 +17,8 @@ struct CommandRunner: Sendable {
         shouldTerminate: (@Sendable () async -> Bool)? = nil,
         onOutputChunk: (@Sendable (String) -> Void)? = nil
     ) async throws -> StepResult {
-        let commandLine = step.effectiveCommand
+        let profile = ProfileStore.current()
+        let commandLine = step.effectiveCommand(profile: profile)
         guard !commandLine.isEmpty else {
             throw CLIError.processError("Step command is empty")
         }
@@ -71,8 +69,9 @@ struct CommandRunner: Sendable {
     }
 
     private func resolveCommandLine(_ commandLine: String) async -> CommandResolution {
+        let executables = resolvableExecutables
         guard let executable = leadingExecutable(in: commandLine),
-              resolvableExecutables.contains(executable),
+              executables.contains(executable),
               let resolvedPath = await resolveExecutablePath(executable)
         else {
             return CommandResolution(

@@ -1,6 +1,7 @@
 import SwiftUI
 
 struct InteractiveView: View {
+    @ObservedObject private var profileManager = CLIProfileManager.shared
     @State private var selectedTool: ToolType = .claude
     @State private var workingDirectory: String = FileManager.default.homeDirectoryForCurrentUser.path
     @State private var sessionActive = false
@@ -150,7 +151,7 @@ struct InteractiveView: View {
                         Text(tool.displayName)
                             .font(.caption.bold())
                             .foregroundStyle(tool == selectedTool ? .primary : .secondary)
-                        Text(tool.interactiveCommand)
+                        Text(tool.interactiveCommand(profile: profileManager.activeProfile))
                             .font(.caption2.monospaced())
                             .foregroundStyle(.tertiary)
                     }
@@ -177,7 +178,7 @@ struct InteractiveView: View {
             executable: shell,
             arguments: ["-l"],
             workingDirectory: workingDirectory,
-            initialCommand: selectedTool.interactiveCommand,
+            initialCommand: selectedTool.interactiveCommand(profile: profileManager.activeProfile),
             onProcessExit: { code in
                 processExited = true
                 exitCode = code

@@ -62,32 +62,32 @@ struct PipelineStep: Identifiable, Codable, Hashable, Sendable {
         !(command?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ?? true)
     }
 
-    var effectiveCommand: String {
+    func effectiveCommand(profile: CLIProfile) -> String {
         let trimmed = command?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         if !trimmed.isEmpty {
-            return normalizedCommand(trimmed)
+            return normalizedCommand(trimmed, profile: profile)
         }
-        return tool.defaultCommandTemplate(model: model)
+        return tool.defaultCommandTemplate(model: model, profile: profile)
     }
 
     var displayTool: ToolType? {
-        if hasCustomCommand {
-            return ToolType.detected(fromCommandLine: effectiveCommand)
+        if hasCustomCommand, let cmd = command {
+            return ToolType.detected(fromCommandLine: cmd)
         }
         return tool
     }
 
-    private func normalizedCommand(_ commandLine: String) -> String {
+    private func normalizedCommand(_ commandLine: String, profile: CLIProfile) -> String {
         let sanitized = commandLine
             .replacingOccurrences(of: "\"{{prompt}}\"", with: "{{prompt}}")
             .replacingOccurrences(of: "'{{prompt}}'", with: "{{prompt}}")
 
         if isLegacyCursorCommand(sanitized) {
-            return ToolType.cursor.defaultCommandTemplate(model: extractedModel(from: sanitized) ?? model)
+            return ToolType.cursor.defaultCommandTemplate(model: extractedModel(from: sanitized) ?? model, profile: profile)
         }
 
         if isLegacyCodexCommand(sanitized) {
-            return ToolType.codex.defaultCommandTemplate(model: extractedModel(from: sanitized) ?? model)
+            return ToolType.codex.defaultCommandTemplate(model: extractedModel(from: sanitized) ?? model, profile: profile)
         }
 
         return sanitized

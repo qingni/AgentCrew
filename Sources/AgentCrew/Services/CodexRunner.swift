@@ -1,9 +1,6 @@
 import Foundation
 
-/// Runs a pipeline step via the OpenAI Codex CLI.
-///
-/// Command pattern:
-///   codex-internal exec --sandbox workspace-write --skip-git-repo-check "<prompt>"
+/// Runs a pipeline step via the Codex CLI, configured through CLIProfile.
 struct CodexRunner: ToolRunner {
     let toolType: ToolType = .codex
     private let cli = CLIRunner()
@@ -14,22 +11,18 @@ struct CodexRunner: ToolRunner {
         shouldTerminate: (@Sendable () async -> Bool)?,
         onOutputChunk: (@Sendable (String) -> Void)?
     ) async throws -> StepResult {
-        var args = [
-            "exec",
-            "--sandbox", "workspace-write",
-            "--skip-git-repo-check",
-        ]
-        if let model = step.model {
-            args += ["--model", model]
-        }
-        if !step.prompt.isEmpty {
-            args.append(step.prompt)
-        }
+        let config = ProfileStore.current().config(for: .codex)
+        let args = config.buildArguments(
+            prompt: step.prompt,
+            model: step.model,
+            workingDirectory: workingDirectory
+        )
 
         let result = try await cli.run(
-            command: "codex-internal",
+            command: config.executable,
             arguments: args,
             workingDirectory: workingDirectory,
+            stdinData: config.promptMode == .stdin ? step.prompt.data(using: .utf8) : nil,
             shouldTerminate: shouldTerminate,
             onOutputChunk: onOutputChunk
         )

@@ -1,8 +1,10 @@
 import AppKit
 
 enum ExternalTerminal {
+    @MainActor
     static func open(tool: ToolType, workingDirectory: String, extraArgs: [String] = []) {
-        let command = tool.interactiveCommand
+        let profile = CLIProfileManager.shared.activeProfile
+        let command = tool.interactiveCommand(profile: profile)
         let args = extraArgs.isEmpty ? "" : " " + extraArgs.joined(separator: " ")
 
         let escapedDir = workingDirectory.replacingOccurrences(of: "\\", with: "\\\\")

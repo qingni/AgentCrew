@@ -699,23 +699,91 @@ private struct DemoProjectSheet: View {
 
 private struct SettingsSheet: View {
     @EnvironmentObject var vm: AppViewModel
+    @ObservedObject private var profileManager = CLIProfileManager.shared
     @Environment(\.dismiss) var dismiss
+
+    @State private var detectionResults: [CLIProfileManager.DetectionResult] = []
+    @State private var isDetecting = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
             Text("Settings").font(.title2.bold())
 
-            GroupBox("AI Pipeline Generator (Agent CLI)") {
-                VStack(alignment: .leading, spacing: 8) {
-                    TextField("Agent Model", text: $vm.llmConfig.model)
-                        .textFieldStyle(.roundedBorder)
+            GroupBox("CLI Environment") {
+                VStack(alignment: .leading, spacing: 12) {
+                    HStack {
+                        Text("Environment")
+                            .font(.subheadline)
+                        Spacer()
+                        Picker("", selection: Binding(
+                            get: { profileManager.activeProfile.id },
+                            set: { newID in
+                                if let profile = CLIProfile.builtInProfiles.first(where: { $0.id == newID }) {
+                                    profileManager.selectProfile(profile)
+                                }
+                            }
+                        )) {
+                            ForEach(CLIProfile.builtInProfiles, id: \.id) { profile in
+                                Text(profile.name).tag(profile.id)
+                            }
+                        }
+                        .pickerStyle(.menu)
+                        .frame(maxWidth: 200)
+                    }
+
+                    Divider()
+
+                    if isDetecting {
+                        HStack(spacing: 8) {
+                            ProgressView().controlSize(.small)
+                            Text("Detecting CLI tools...")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                    } else if !detectionResults.isEmpty {
+                        LazyVGrid(columns: [
+                            GridItem(.flexible()),
+                            GridItem(.flexible()),
+                        ], spacing: 6) {
+                            ForEach(detectionResults, id: \.executable) { result in
+                                HStack(spacing: 6) {
+                                    Image(systemName: result.found ? "checkmark.circle.fill" : "xmark.circle")
+                                        .foregroundStyle(result.found ? .green : .secondary)
+                                        .font(.caption)
+                                    Text(result.executable)
+                                        .font(.system(.caption, design: .monospaced))
+                                    Spacer()
+                                }
+                                .padding(.vertical, 3)
+                                .padding(.horizontal, 8)
+                                .background(
+                                    result.found
+                                        ? Color.green.opacity(0.08)
+                                        : Color.secondary.opacity(0.06),
+                                    in: RoundedRectangle(cornerRadius: 6)
+                                )
+                            }
+                        }
+                    }
+
+                    ForEach(ToolType.allCases) { tool in
+                        cliToolRow(tool)
+                    }
+
+                    Text("Switching environment updates all pipeline steps that don't have a custom command override.")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
                 }
                 .padding(8)
             }
 
-            Text("AI Generate now uses local `agent` CLI. Ensure `agent` is installed and logged in on this machine.")
-                .font(.caption)
-                .foregroundStyle(.secondary)
+            GroupBox("AI Pipeline Generator") {
+                VStack(alignment: .leading, spacing: 8) {
+                    TextField("Default Model", text: $vm.llmConfig.model)
+                        .textFieldStyle(.roundedBorder)
+                }
+                .padding(8)
+            }
 
             HStack {
                 Spacer()
@@ -724,6 +792,33 @@ private struct SettingsSheet: View {
             }
         }
         .padding(24)
-        .frame(width: 440)
+        .frame(width: 480)
+        .task { await runDetection() }
+    }
+
+    @ViewBuilder
+    private func cliToolRow(_ tool: ToolType) -> some View {
+        let config = profileManager.activeProfile.config(for: tool)
+        HStack(spacing: 6) {
+            Image(systemName: tool.iconName)
+                .foregroundStyle(tool.tintColor)
+                .frame(width: 16)
+            Text(tool.displayName)
+                .font(.caption.bold())
+                .frame(width: 48, alignment: .leading)
+            Text(config.executable)
+                .font(.system(.caption, design: .monospaced))
+                .foregroundStyle(.secondary)
+            Spacer()
+        }
+    }
+
+    private func runDetection() async {
+        isDetecting = true
+        let (results, _) = await profileManager.detectEnvironment()
+        withAnimation(.easeInOut(duration: 0.3)) {
+            detectionResults = results
+            isDetecting = false
+        }
     }
 }
