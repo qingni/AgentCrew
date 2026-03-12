@@ -69,7 +69,12 @@ struct PlanResponse: Codable, Sendable {
             pipelineStages.append(PipelineStage(name: plannedStage.name, steps: steps, executionMode: mode))
         }
 
-        return Pipeline(name: pipelineName, stages: pipelineStages, workingDirectory: workingDirectory)
+        return Pipeline(
+            name: pipelineName,
+            stages: pipelineStages,
+            workingDirectory: workingDirectory,
+            isAIGenerated: true
+        )
     }
 }
 

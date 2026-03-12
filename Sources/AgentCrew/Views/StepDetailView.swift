@@ -79,13 +79,6 @@ struct StepDetailView: View {
                 .textCase(nil)
             }
 
-            Section("Prompt") {
-                TextEditor(text: $prompt)
-                    .font(.system(.body, design: .monospaced))
-                    .frame(minHeight: 120)
-                    .disabled(isEditingLocked)
-            }
-
             DisclosureGroup("Advanced", isExpanded: $showAdvanced) {
                 VStack(alignment: .leading, spacing: 6) {
                     Text("Custom Command Override")
@@ -127,6 +120,13 @@ struct StepDetailView: View {
                         .foregroundStyle(.red)
                     }
                 }
+            }
+
+            Section("Prompt") {
+                TextEditor(text: $prompt)
+                    .font(.system(.body, design: .monospaced))
+                    .frame(minHeight: 120)
+                    .disabled(isEditingLocked)
             }
 
             Section("Run After") {

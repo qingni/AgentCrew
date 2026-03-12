@@ -96,7 +96,9 @@ struct ContentView: View {
                 Button {
                     showAutoPlanner = true
                 } label: {
-                    Label {
+                    HStack(spacing: 8) {
+                        Image(systemName: "sparkles.rectangle.stack.fill")
+                            .foregroundStyle(.purple)
                         VStack(alignment: .leading, spacing: 2) {
                             Text("AI Pipeline Generator")
                                 .font(.subheadline.weight(.semibold))
@@ -104,19 +106,18 @@ struct ContentView: View {
                                 .font(.caption2)
                                 .foregroundStyle(.secondary)
                         }
-                    } icon: {
-                        Image(systemName: "sparkles.rectangle.stack.fill")
-                            .foregroundStyle(.purple)
+                        Spacer(minLength: 0)
                     }
+                    .padding(.vertical, 3)
+                    .padding(.horizontal, 6)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(
+                        RoundedRectangle(cornerRadius: 8)
+                            .fill(.purple.opacity(0.10))
+                    )
+                    .contentShape(RoundedRectangle(cornerRadius: 8))
                 }
                 .buttonStyle(.plain)
-                .padding(.vertical, 3)
-                .padding(.horizontal, 6)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .background(
-                    RoundedRectangle(cornerRadius: 8)
-                        .fill(.purple.opacity(0.10))
-                )
             }
 
             Section("Projects") {
@@ -220,7 +221,21 @@ struct ContentView: View {
                 Image(systemName: "flowchart")
                     .foregroundStyle(.blue)
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(pipeline.name).lineLimit(1)
+                    HStack(spacing: 6) {
+                        Text(pipeline.name)
+                            .lineLimit(1)
+                            .truncationMode(.tail)
+                        if pipeline.isAIGenerated {
+                            Text("AI")
+                                .font(.caption2.bold())
+                                .foregroundStyle(.purple)
+                                .padding(.horizontal, 6)
+                                .padding(.vertical, 1)
+                                .background(.purple.opacity(0.14), in: Capsule())
+                                .fixedSize()
+                        }
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
                     Text(
                         "\(pipeline.stages.count) stages · \(pipeline.allSteps.count) steps"
                     )

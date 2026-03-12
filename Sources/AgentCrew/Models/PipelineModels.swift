@@ -251,6 +251,7 @@ struct Pipeline: Identifiable, Codable, Sendable {
     var name: String
     var stages: [PipelineStage]
     var workingDirectory: String
+    var isAIGenerated: Bool
     var createdAt: Date
     var runHistory: [PipelineRunRecord]
     var lockedAfterFirstRunAt: Date?
@@ -260,6 +261,7 @@ struct Pipeline: Identifiable, Codable, Sendable {
         name: String,
         stages: [PipelineStage] = [],
         workingDirectory: String = "",
+        isAIGenerated: Bool = false,
         runHistory: [PipelineRunRecord] = [],
         lockedAfterFirstRunAt: Date? = nil
     ) {
@@ -267,6 +269,7 @@ struct Pipeline: Identifiable, Codable, Sendable {
         self.name = name
         self.stages = stages
         self.workingDirectory = workingDirectory
+        self.isAIGenerated = isAIGenerated
         self.createdAt = Date()
         self.runHistory = runHistory
         self.lockedAfterFirstRunAt = lockedAfterFirstRunAt
@@ -313,6 +316,7 @@ struct Pipeline: Identifiable, Codable, Sendable {
         case name
         case stages
         case workingDirectory
+        case isAIGenerated
         case createdAt
         case runHistory
         case lockedAfterFirstRunAt
@@ -324,6 +328,7 @@ struct Pipeline: Identifiable, Codable, Sendable {
         self.name = try container.decode(String.self, forKey: .name)
         self.stages = try container.decodeIfPresent([PipelineStage].self, forKey: .stages) ?? []
         self.workingDirectory = try container.decodeIfPresent(String.self, forKey: .workingDirectory) ?? ""
+        self.isAIGenerated = try container.decodeIfPresent(Bool.self, forKey: .isAIGenerated) ?? false
         self.createdAt = try container.decodeIfPresent(Date.self, forKey: .createdAt) ?? Date()
         self.runHistory = try container.decodeIfPresent([PipelineRunRecord].self, forKey: .runHistory) ?? []
         self.lockedAfterFirstRunAt = try container.decodeIfPresent(Date.self, forKey: .lockedAfterFirstRunAt)
@@ -335,6 +340,7 @@ struct Pipeline: Identifiable, Codable, Sendable {
         try container.encode(name, forKey: .name)
         try container.encode(stages, forKey: .stages)
         try container.encode(workingDirectory, forKey: .workingDirectory)
+        try container.encode(isAIGenerated, forKey: .isAIGenerated)
         try container.encode(createdAt, forKey: .createdAt)
         try container.encode(runHistory, forKey: .runHistory)
         try container.encode(lockedAfterFirstRunAt, forKey: .lockedAfterFirstRunAt)
