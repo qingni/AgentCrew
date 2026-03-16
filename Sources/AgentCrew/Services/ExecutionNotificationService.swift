@@ -38,15 +38,22 @@ enum ExecutionNotificationServiceError: LocalizedError {
 actor ExecutionNotificationService {
     static let shared = ExecutionNotificationService()
 
-    private let center: UNUserNotificationCenter
+    private let center: UNUserNotificationCenter?
     private let presentationDelegate: NotificationPresentationDelegate
 
-    init(center: UNUserNotificationCenter = .current()) {
-        self.center = center
+    init(center: UNUserNotificationCenter? = nil) {
+        if let center {
+            self.center = center
+        } else if Bundle.main.bundleIdentifier != nil {
+            self.center = UNUserNotificationCenter.current()
+        } else {
+            self.center = nil
+        }
         self.presentationDelegate = NotificationPresentationDelegate()
     }
 
     func authorizationState() async -> ExecutionNotificationAuthorizationState {
+        guard center != nil else { return .denied }
         let settings = await currentSettings()
         switch settings.authorizationStatus {
         case .authorized, .provisional, .ephemeral:
@@ -61,6 +68,7 @@ actor ExecutionNotificationService {
     }
 
     func requestAuthorizationIfNeeded() async -> Bool {
+        guard center != nil else { return false }
         let status = await authorizationState()
         switch status {
         case .authorized:
@@ -79,6 +87,10 @@ actor ExecutionNotificationService {
         playSound: Bool,
         delaySeconds: TimeInterval = 0
     ) async throws {
+        guard center != nil else {
+            throw ExecutionNotificationServiceError.authorizationDenied
+        }
+
         await configureForegroundPresentation()
 
         let status = await authorizationState()
@@ -115,13 +127,18 @@ actor ExecutionNotificationService {
     }
 
     func configureForegroundPresentation() async {
+        guard let center = self.center else { return }
+        let delegate = self.presentationDelegate
         await MainActor.run {
-            center.delegate = presentationDelegate
+            center.delegate = delegate
         }
     }
 
     private func currentSettings() async -> UNNotificationSettings {
-        await withCheckedContinuation { continuation in
+        guard let center = self.center else {
+            fatalError("currentSettings() called without a notification center")
+        }
+        return await withCheckedContinuation { continuation in
             center.getNotificationSettings { settings in
                 continuation.resume(returning: settings)
             }
@@ -129,6 +146,7 @@ actor ExecutionNotificationService {
     }
 
     private func requestAuthorization() async -> Bool {
+        guard let center = self.center else { return false }
         await configureForegroundPresentation()
         return await withCheckedContinuation { continuation in
             center.requestAuthorization(options: [.alert, .sound]) { granted, _ in
@@ -138,6 +156,9 @@ actor ExecutionNotificationService {
     }
 
     private func add(_ request: UNNotificationRequest) async throws {
+        guard let center = self.center else {
+            throw ExecutionNotificationServiceError.schedulingFailed("No notification center available")
+        }
         try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
             center.add(request) { error in
                 if let error {
@@ -153,8 +174,6 @@ actor ExecutionNotificationService {
         let requestedDelay = max(0, delaySeconds)
         let appIsActive = await MainActor.run { NSApplication.shared.isActive }
         if appIsActive {
-            // If the app is frontmost, give users a short window to switch apps
-            // so the banner can still surface in Notification Center UI.
             return max(requestedDelay, 3)
         }
         return requestedDelay
