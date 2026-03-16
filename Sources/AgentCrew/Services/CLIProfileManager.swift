@@ -125,6 +125,10 @@ enum ProfileStore {
 
     private static func loadFromDisk() -> CLIProfile? {
         guard let data = try? Data(contentsOf: fileURL) else { return nil }
-        return try? JSONDecoder().decode(CLIProfile.self, from: data)
+        guard let decoded = try? JSONDecoder().decode(CLIProfile.self, from: data) else { return nil }
+        if let builtIn = CLIProfile.builtInProfile(id: decoded.id) {
+            return builtIn
+        }
+        return decoded
     }
 }

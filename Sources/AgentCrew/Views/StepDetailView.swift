@@ -14,12 +14,13 @@ struct StepDetailView: View {
     @State private var dependsOnStepIDs: [UUID] = []
     @State private var continueOnFailure: Bool = false
     @State private var showAdvanced = false
+    @State private var savedStepSnapshot: PipelineStep?
 
     var body: some View {
         Form {
-            if vm.isPipelineLocked(pipelineID) {
+            if vm.isPipelineExecuting(pipelineID) {
                 Section {
-                    Label("This pipeline has already run. Stage and step configuration is now locked.", systemImage: "lock.fill")
+                    Label("This pipeline is running. Stage and step configuration can't be edited right now.", systemImage: "lock.fill")
                         .font(.caption)
                         .foregroundStyle(.orange)
                 }
@@ -157,14 +158,16 @@ struct StepDetailView: View {
         .formStyle(.grouped)
         .navigationTitle("Step Detail")
         .onAppear { loadFromStep() }
-        .onChange(of: step.id) { loadFromStep() }
-        .onChange(of: vm.executingPipelineID) { _, executingPipelineID in
-            if executingPipelineID == pipelineID && isDirty && !vm.isPipelineLocked(pipelineID) {
+        .onChange(of: step) { _, _ in
+            loadFromStep()
+        }
+        .onChange(of: vm.isPipelineExecuting(pipelineID)) { _, isRunning in
+            if !isRunning && isDirty {
                 scheduleApplyChanges()
             }
         }
         .onDisappear {
-            if isDirty && !vm.isPipelineLocked(pipelineID) && !vm.isPipelineExecuting(pipelineID) {
+            if isDirty && !vm.isPipelineExecuting(pipelineID) {
                 scheduleApplyChanges()
             }
         }
@@ -221,6 +224,7 @@ struct StepDetailView: View {
     }
 
     private func loadFromStep() {
+        savedStepSnapshot = step
         name = step.name
         selectedTool = step.tool
         modelOverride = step.model ?? ""
@@ -232,7 +236,6 @@ struct StepDetailView: View {
     }
 
     private func applyChanges() {
-        guard !vm.isPipelineLocked(pipelineID) else { return }
         guard !vm.isPipelineExecuting(pipelineID) else { return }
         var updated = step
         updated.name = name
@@ -244,6 +247,7 @@ struct StepDetailView: View {
         updated.dependsOnStepIDs = dependsOnStepIDs
         updated.continueOnFailure = continueOnFailure
         vm.updateStep(updated, in: pipelineID)
+        savedStepSnapshot = updated
     }
 
     private func toggleDependency(_ otherID: UUID) {
@@ -263,18 +267,19 @@ struct StepDetailView: View {
     }
 
     private var isDirty: Bool {
+        let baseline = savedStepSnapshot ?? step
         let trimmedCommand = sanitizedCommand(command)
-        let trimmedSavedCommand = step.command.flatMap { sanitizedCommand($0) }
+        let trimmedSavedCommand = baseline.command.flatMap { sanitizedCommand($0) }
         let trimmedModel = modelOverride.trimmingCharacters(in: .whitespacesAndNewlines)
-        let savedModel = step.model ?? ""
+        let savedModel = baseline.model ?? ""
 
-        return name != step.name
-            || selectedTool != step.tool
+        return name != baseline.name
+            || selectedTool != baseline.tool
             || trimmedModel != savedModel
-            || prompt != step.prompt
-            || continueOnFailure != step.continueOnFailure
+            || prompt != baseline.prompt
+            || continueOnFailure != baseline.continueOnFailure
             || trimmedCommand != trimmedSavedCommand
-            || Set(dependsOnStepIDs) != Set(step.dependsOnStepIDs)
+            || Set(dependsOnStepIDs) != Set(baseline.dependsOnStepIDs)
     }
 
     private func scheduleApplyChanges() {
@@ -284,6 +289,6 @@ struct StepDetailView: View {
     }
 
     private var isEditingLocked: Bool {
-        vm.isPipelineExecuting(pipelineID) || vm.isPipelineLocked(pipelineID)
+        vm.isPipelineExecuting(pipelineID)
     }
 }

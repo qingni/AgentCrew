@@ -10,13 +10,13 @@
 ### Cursor
 
 ```bash
-cursor --trust --model opus-4.6 -p {{prompt}}
+cursor-agent --trust --model opus-4.6 -p {{prompt}}
 ```
 
 查看可用模型：
 
 ```bash
-cursor models
+cursor-agent models
 ```
 
 ### Codex
@@ -35,16 +35,16 @@ claude --print --permission-mode bypassPermissions --add-dir . -p {{prompt}}
 
 ## Internal 版本
 
-### Cursor（executable: `agent`）
+### Cursor（executable: `cursor-agent`）
 
 ```bash
-agent --trust --model opus-4.6 -p {{prompt}}
+cursor-agent --trust --model opus-4.6 -p {{prompt}}
 ```
 
 查看可用模型：
 
 ```bash
-agent models
+cursor-agent models
 ```
 
 ### Codex（executable: `codex-internal`，仅国内模型）
@@ -65,12 +65,12 @@ claude-internal --print --permission-mode bypassPermissions --add-dir . -p {{pro
 
 ```bash
 # Open Source
-cursor --trust --model opus-4.6 -p "总结下当前项目"
+cursor-agent --trust --model opus-4.6 -p "总结下当前项目"
 codex exec --sandbox workspace-write "当前项目总结下"
 claude --print --permission-mode bypassPermissions --add-dir . -p "当前项目总结下"
 
 # Internal
-agent --trust --model opus-4.6 -p "总结下当前项目"
+cursor-agent --trust --model opus-4.6 -p "总结下当前项目"
 codex-internal exec --sandbox workspace-write --skip-git-repo-check "当前项目总结下"
 claude-internal --print --permission-mode bypassPermissions --add-dir . -p "当前项目总结下"
 ```

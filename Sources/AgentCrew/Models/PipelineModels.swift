@@ -95,7 +95,9 @@ struct PipelineStep: Identifiable, Codable, Hashable, Sendable {
 
     private func isLegacyCursorCommand(_ commandLine: String) -> Bool {
         let lower = commandLine.lowercased()
-        return lower.contains("cursor-agent -p -f")
+        return lower.contains("cursor --trust")
+            || lower.contains("agent --trust")
+            || lower.contains("cursor-agent -p -f")
             || lower.contains("|| agent -p -f")
             || lower.contains("agent -p -f")
     }
@@ -224,6 +226,10 @@ struct PipelineRunRecord: Identifiable, Codable, Sendable {
     var status: PipelineRunStatus
     var stageRuns: [StageRunRecord]
     var errorMessage: String?
+    var orchestrationMode: OrchestrationMode?
+    var agentRoundIndex: Int?
+    var agentStrategy: AgentRepairStrategy?
+    var coverageSnapshot: [AgentCoverageItem]?
 
     init(pipeline: Pipeline, startedAt: Date = Date()) {
         self.id = UUID()
@@ -232,6 +238,10 @@ struct PipelineRunRecord: Identifiable, Codable, Sendable {
         self.status = .running
         self.stageRuns = pipeline.stages.map(StageRunRecord.init(stage:))
         self.errorMessage = nil
+        self.orchestrationMode = nil
+        self.agentRoundIndex = nil
+        self.agentStrategy = nil
+        self.coverageSnapshot = nil
     }
 
     var duration: TimeInterval? {
@@ -254,6 +264,8 @@ struct Pipeline: Identifiable, Codable, Sendable {
     var isAIGenerated: Bool
     var createdAt: Date
     var runHistory: [PipelineRunRecord]
+    var preferredRunMode: OrchestrationMode
+    // Legacy persisted field retained so older saved pipeline data still decodes.
     var lockedAfterFirstRunAt: Date?
 
     init(
@@ -263,6 +275,7 @@ struct Pipeline: Identifiable, Codable, Sendable {
         workingDirectory: String = "",
         isAIGenerated: Bool = false,
         runHistory: [PipelineRunRecord] = [],
+        preferredRunMode: OrchestrationMode = .pipeline,
         lockedAfterFirstRunAt: Date? = nil
     ) {
         self.id = id
@@ -272,15 +285,12 @@ struct Pipeline: Identifiable, Codable, Sendable {
         self.isAIGenerated = isAIGenerated
         self.createdAt = Date()
         self.runHistory = runHistory
+        self.preferredRunMode = preferredRunMode
         self.lockedAfterFirstRunAt = lockedAfterFirstRunAt
     }
 
     var allSteps: [PipelineStep] {
         stages.flatMap { $0.steps }
-    }
-
-    var isLockedAfterRun: Bool {
-        lockedAfterFirstRunAt != nil
     }
 
     static func suggestedName(forWorkingDirectory workingDirectory: String) -> String? {
@@ -319,6 +329,7 @@ struct Pipeline: Identifiable, Codable, Sendable {
         case isAIGenerated
         case createdAt
         case runHistory
+        case preferredRunMode
         case lockedAfterFirstRunAt
     }
 
@@ -331,6 +342,7 @@ struct Pipeline: Identifiable, Codable, Sendable {
         self.isAIGenerated = try container.decodeIfPresent(Bool.self, forKey: .isAIGenerated) ?? false
         self.createdAt = try container.decodeIfPresent(Date.self, forKey: .createdAt) ?? Date()
         self.runHistory = try container.decodeIfPresent([PipelineRunRecord].self, forKey: .runHistory) ?? []
+        self.preferredRunMode = try container.decodeIfPresent(OrchestrationMode.self, forKey: .preferredRunMode) ?? .pipeline
         self.lockedAfterFirstRunAt = try container.decodeIfPresent(Date.self, forKey: .lockedAfterFirstRunAt)
     }
 
@@ -343,6 +355,7 @@ struct Pipeline: Identifiable, Codable, Sendable {
         try container.encode(isAIGenerated, forKey: .isAIGenerated)
         try container.encode(createdAt, forKey: .createdAt)
         try container.encode(runHistory, forKey: .runHistory)
+        try container.encode(preferredRunMode, forKey: .preferredRunMode)
         try container.encode(lockedAfterFirstRunAt, forKey: .lockedAfterFirstRunAt)
     }
 }

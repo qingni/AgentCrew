@@ -11,7 +11,7 @@
   ├────────┼──────────────────────────────────┼──────────────────────────┼──────────────────────┤
   │ Claude │ claude --print                   │ sonnet, opus, haiku      │ 编码 + 审查          │
   ├────────┼──────────────────────────────────┼──────────────────────────┼──────────────────────┤
-  │ Cursor │ agent -p -f / cursor-agent -p -f │ auto, gpt-5, sonnet-4    │ 编码 + 审查          │
+  │ Cursor │ cursor-agent --trust -p          │ auto, gpt-5, sonnet-4    │ 编码 + 审查          │
   └────────┴──────────────────────────────────┴──────────────────────────┴──────────────────────┘
 
   Cursor CLI 在项目中的具体角色
@@ -31,7 +31,7 @@
 
   - Codex：codex exec --cd <dir> --sandbox workspace-write --skip-git-repo-check < prompt_file — 通过 stdin 传入 prompt
   - Claude：claude --print --permission-mode bypassPermissions --add-dir <dir> < prompt_file — 通过 stdin 传入 prompt
-  - Cursor：agent -p -f "$(cat prompt_file)" — 通过命令行参数传入 prompt（用 cat 读文件内容作为参数）
+  - Cursor：cursor-agent --trust -p "$(cat prompt_file)" — 通过命令行参数传入 prompt（用 cat 读文件内容作为参数）
 
   总结
 

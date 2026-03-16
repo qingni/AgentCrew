@@ -161,7 +161,7 @@ process.environment = CLIRunner.buildEnvironment(extra: environment)
 |--------|---------|------|
 | CodexRunner | `codex-internal` | ✅ 可找到 nvm 下安装的 codex-internal |
 | ClaudeRunner | `claude` | ✅ 可找到 npm 全局安装的 claude |
-| CursorRunner | `cursor-agent` / `agent` | ✅ 可找到各类包管理器安装的命令 |
+| CursorRunner | `cursor-agent` | ✅ 可找到各类包管理器安装的命令 |
 
 ## 验证方法
 

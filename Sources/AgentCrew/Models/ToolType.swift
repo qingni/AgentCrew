@@ -58,10 +58,12 @@ enum ToolType: String, Codable, CaseIterable, Identifiable, Sendable {
 
     static func detected(fromCommandLine commandLine: String) -> ToolType? {
         let lower = commandLine.lowercased()
-        if lower.contains("cursor-agent") || lower.hasPrefix("agent ") || lower.contains(" agent ") {
-            return .cursor
-        }
-        if lower.hasPrefix("cursor ") || lower.contains(" cursor ") {
+        if lower.contains("cursor-agent")
+            || lower.hasPrefix("cursor ")
+            || lower.contains(" cursor ")
+            || lower.hasPrefix("agent ")
+            || lower.contains(" agent ")
+        {
             return .cursor
         }
         if lower.contains("codex") {

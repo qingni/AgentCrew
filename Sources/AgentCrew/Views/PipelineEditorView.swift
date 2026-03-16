@@ -7,8 +7,15 @@ struct PipelineEditorView: View {
     @State private var newStageMode: ExecutionMode = .parallel
     @State private var showAddStage = false
     @State private var showEditPipeline = false
+    @State private var humanApprovalInstruction = ""
     private var isPipelineExecuting: Bool {
         vm.isPipelineExecuting(pipeline.id)
+    }
+    private var isPipelineQueued: Bool {
+        vm.isPipelineQueued(pipeline.id)
+    }
+    private var isAgentExecuting: Bool {
+        vm.isAgentExecuting(pipeline.id)
     }
 
     private var latestRunRecord: PipelineRunRecord? {
@@ -27,6 +34,25 @@ struct PipelineEditorView: View {
         return pipeline.stages.contains(where: { $0.id == stageID })
     }
 
+    private var selectedRunMode: OrchestrationMode {
+        vm.preferredRunMode(for: pipeline.id)
+    }
+
+    private var selectedRunModeBinding: Binding<OrchestrationMode> {
+        Binding(
+            get: { vm.preferredRunMode(for: pipeline.id) },
+            set: { vm.setPreferredRunMode($0, for: pipeline.id) }
+        )
+    }
+
+    private var recommendation: ModeRecommendation {
+        vm.modeRecommendation(for: pipeline)
+    }
+
+    private var canSwitchRunMode: Bool {
+        !isPipelineExecuting && !isPipelineQueued
+    }
+
     var body: some View {
         VStack(spacing: 0) {
             pipelineHeader
@@ -42,8 +68,9 @@ struct PipelineEditorView: View {
                                 StageCard(
                                     stage: stage,
                                     pipelineID: pipeline.id,
-                                    isPipelineLocked: pipeline.isLockedAfterRun,
-                                    isPipelineExecuting: isPipelineExecuting
+                                    isEditingLocked: isPipelineExecuting,
+                                    isPipelineExecuting: isPipelineExecuting,
+                                    isAgentExecuting: isAgentExecuting
                                 )
                             }
 
@@ -71,26 +98,39 @@ struct PipelineEditorView: View {
                 pipelineInfo
                 Spacer()
 
-                if isPipelineExecuting {
+                if isPipelineExecuting || isPipelineQueued {
                     HStack(spacing: 6) {
-                        ProgressView().controlSize(.small)
-                        Text("Running...").font(.caption).foregroundStyle(.secondary)
+                        if isPipelineExecuting {
+                            ProgressView().controlSize(.small)
+                        } else {
+                            Image(systemName: "clock")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                        Text(
+                            isPipelineExecuting
+                                ? (isAgentExecuting ? "Agent running..." : "Running...")
+                                : "Queued..."
+                        )
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
                     }
+                }
 
+                if isPipelineExecuting {
                     Button {
-                        vm.stopPipeline()
+                        vm.stopPipeline(pipeline.id)
                     } label: {
-                        Label(vm.isStopRequested ? "Stopping..." : "Stop Pipeline", systemImage: "stop.fill")
+                        Label(
+                            vm.isPipelineStopRequested(pipeline.id)
+                                ? "Stopping..."
+                                : (isAgentExecuting ? "Stop Agent" : "Stop Pipeline"),
+                            systemImage: "stop.fill"
+                        )
                     }
                     .buttonStyle(.bordered)
                     .tint(.red)
-                    .disabled(vm.isStopRequested)
-                }
-
-                if pipeline.isLockedAfterRun {
-                    Label("Locked after first run", systemImage: "lock.fill")
-                        .font(.caption)
-                        .foregroundStyle(.orange)
+                    .disabled(vm.isPipelineStopRequested(pipeline.id))
                 }
 
                 Button {
@@ -109,17 +149,54 @@ struct PipelineEditorView: View {
                     Label("Edit", systemImage: "pencil")
                 }
                 .buttonStyle(.bordered)
-                .disabled(isPipelineExecuting || pipeline.isLockedAfterRun)
+                .disabled(isPipelineExecuting)
                 .help(editPipelineHelpText)
 
                 Button {
-                    Task { await vm.executePipeline(pipeline) }
+                    Task { await vm.executeSelectedMode(for: pipeline) }
                 } label: {
-                    Label("Run Pipeline", systemImage: "play.fill")
+                    Label(
+                        selectedRunMode == .agent ? "Run Agent" : "Run Pipeline",
+                        systemImage: selectedRunMode == .agent ? "sparkles" : "play.fill"
+                    )
                 }
                 .buttonStyle(.borderedProminent)
-                .tint(.green)
-                .disabled(vm.isExecuting || pipeline.allSteps.isEmpty)
+                .tint(selectedRunMode == .agent ? .purple : .green)
+                .disabled(isPipelineExecuting || isPipelineQueued || pipeline.allSteps.isEmpty)
+                .help(
+                    isPipelineQueued
+                        ? (vm.queuedReason(for: pipeline.id) ?? "This pipeline is waiting in queue.")
+                        : (
+                            selectedRunMode == .agent
+                                ? "Run as adaptive multi-round Agent session."
+                                : "Run as deterministic Pipeline DAG."
+                        )
+                )
+            }
+
+            modeSelectionPanel
+
+            if isPipelineQueued, let reason = vm.queuedReason(for: pipeline.id) {
+                HStack(spacing: 6) {
+                    Image(systemName: "clock.badge.exclamationmark")
+                        .foregroundStyle(.orange)
+                    Text(reason)
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(2)
+                }
+                .padding(.horizontal, 10)
+                .padding(.vertical, 6)
+                .background(.orange.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+            }
+
+            if !isPipelineExecuting && !isPipelineQueued,
+               let suggestion = vm.runtimeSwitchSuggestion(for: pipeline) {
+                runtimeSwitchBanner(suggestion)
+            }
+
+            if let session = vm.latestAgentSession(for: pipeline.id) {
+                agentSessionBanner(session)
             }
 
             if let failedStage = latestFailedStageRun, !isPipelineExecuting, canRetryLatestFailedStage {
@@ -143,10 +220,238 @@ struct PipelineEditorView: View {
         }
         .contentShape(Rectangle())
         .onTapGesture(count: 2) {
-            guard !isPipelineExecuting && !pipeline.isLockedAfterRun else { return }
+            guard !isPipelineExecuting else { return }
             showEditPipeline = true
         }
         .help(editPipelineHelpText)
+    }
+
+    private var modeSelectionPanel: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 10) {
+                Text("Run Mode")
+                    .font(.caption.bold())
+
+                Picker("Run Mode", selection: selectedRunModeBinding) {
+                    ForEach(OrchestrationMode.allCases) { mode in
+                        Text(mode.title).tag(mode)
+                    }
+                }
+                .pickerStyle(.segmented)
+                .frame(width: 220)
+                .disabled(!canSwitchRunMode)
+                .help(canSwitchRunMode ? "Choose the mode used for the next run." : "Stop current run before switching mode.")
+
+                Text("Recommended: \(recommendation.recommendedMode.title)")
+                    .font(.caption2.bold())
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 3)
+                    .background(recommendationColor.opacity(0.14), in: Capsule())
+                    .foregroundStyle(recommendationColor)
+
+                Spacer()
+
+                Text("Score \(recommendation.score)")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+
+                if selectedRunMode != recommendation.recommendedMode {
+                    Button("Use Recommended") {
+                        vm.setPreferredRunMode(
+                            recommendation.recommendedMode,
+                            for: pipeline.id,
+                            source: .preRunRecommendation
+                        )
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.mini)
+                    .disabled(!canSwitchRunMode)
+                }
+            }
+
+            if !recommendation.reasons.isEmpty {
+                Text(recommendation.reasons.joined(separator: " · "))
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(2)
+            }
+        }
+        .padding(10)
+        .background(.quaternary.opacity(0.35), in: RoundedRectangle(cornerRadius: 8))
+        .task(id: recommendationTrackingKey) {
+            vm.markPreRunRecommendationShown(
+                for: pipeline.id,
+                recommendation: recommendation
+            )
+        }
+    }
+
+    private func runtimeSwitchBanner(_ suggestion: RuntimeModeSuggestion) -> some View {
+        HStack(alignment: .top, spacing: 10) {
+            Image(systemName: "exclamationmark.triangle.fill")
+                .foregroundStyle(.orange)
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Suggestion: switch to \(suggestion.suggestedMode.title)")
+                    .font(.caption.bold())
+                    .foregroundStyle(.orange)
+                Text(suggestion.reasons.joined(separator: " · "))
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(2)
+            }
+
+            Spacer()
+
+            Button("Switch to Agent") {
+                vm.acceptRuntimeSwitchSuggestion(for: pipeline.id)
+            }
+            .buttonStyle(.borderedProminent)
+            .controlSize(.small)
+
+            Button("Dismiss") {
+                vm.dismissRuntimeModeSuggestion(for: pipeline.id)
+            }
+            .buttonStyle(.borderless)
+            .font(.caption)
+            .foregroundStyle(.secondary)
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 8)
+        .background(.orange.opacity(0.12), in: RoundedRectangle(cornerRadius: 8))
+        .onAppear {
+            vm.markRuntimeSuggestionShown(for: pipeline.id, suggestion: suggestion)
+        }
+    }
+
+    private func agentSessionBanner(_ session: AgentSessionState) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(alignment: .top, spacing: 10) {
+                Image(systemName: agentStatusIcon(session.status))
+                    .foregroundStyle(agentStatusColor(session.status))
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Agent session: \(session.status.rawValue)")
+                        .font(.caption.bold())
+                        .foregroundStyle(agentStatusColor(session.status))
+                    Text("Round \(session.currentRound)/\(session.maxRounds)")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                    if session.coverageRequiredCount > 0 {
+                        Text("Coverage: \(session.coverageResolvedCount)/\(session.coverageRequiredCount) resolved")
+                            .font(.caption2)
+                            .foregroundStyle(session.unresolvedCoverageItems.isEmpty ? .green : .orange)
+                    }
+                    if let latestRound = session.rounds.last {
+                        if let strategy = latestRound.strategy {
+                            Text("Strategy: \(strategy.displayName)")
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
+                            if strategy == .retryFailedStage {
+                                Text("Only unresolved steps are retried.")
+                                    .font(.caption2)
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                        Text(latestRound.summary)
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(2)
+                    } else if let failureMessage = session.failureMessage, !failureMessage.isEmpty {
+                        Text(failureMessage)
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(2)
+                    }
+                }
+
+                Spacer()
+            }
+
+            if session.status == .waitingHuman {
+                VStack(alignment: .leading, spacing: 6) {
+                    TextField(
+                        "Optional instruction for next round (e.g. keep API stable, avoid schema change)",
+                        text: $humanApprovalInstruction
+                    )
+                    .textFieldStyle(.roundedBorder)
+
+                    HStack(spacing: 8) {
+                        Button("Approve and Continue") {
+                            let instruction = humanApprovalInstruction
+                            humanApprovalInstruction = ""
+                            Task {
+                                await vm.resumeAgentSessionAfterHumanApproval(
+                                    for: pipeline,
+                                    instruction: instruction
+                                )
+                            }
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .controlSize(.small)
+                        .tint(.orange)
+                        .disabled(vm.isPipelineExecuting(pipeline.id) || vm.isPipelineQueued(pipeline.id))
+
+                        Button("Abort Session") {
+                            humanApprovalInstruction = ""
+                            vm.abortWaitingAgentSession(for: pipeline.id)
+                        }
+                        .buttonStyle(.bordered)
+                        .controlSize(.small)
+                        .tint(.red)
+                        .disabled(vm.isPipelineExecuting(pipeline.id))
+                    }
+                }
+            }
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 8)
+        .background(agentStatusColor(session.status).opacity(0.12), in: RoundedRectangle(cornerRadius: 8))
+    }
+
+    private var recommendationColor: Color {
+        switch recommendation.recommendedMode {
+        case .pipeline:
+            return .blue
+        case .agent:
+            return recommendation.strength == .weak ? .orange : .purple
+        }
+    }
+
+    private var recommendationTrackingKey: String {
+        "\(recommendation.recommendedMode.rawValue)|\(recommendation.score)|\(recommendation.reasons.joined(separator: "||"))"
+    }
+
+    private func agentStatusColor(_ status: AgentSessionStatus) -> Color {
+        switch status {
+        case .created, .planning, .executing, .evaluating:
+            return .blue
+        case .waitingHuman:
+            return .orange
+        case .completed:
+            return .green
+        case .failed, .cancelled:
+            return .red
+        }
+    }
+
+    private func agentStatusIcon(_ status: AgentSessionStatus) -> String {
+        switch status {
+        case .created, .planning:
+            return "sparkles"
+        case .executing:
+            return "play.circle.fill"
+        case .evaluating:
+            return "checkmark.seal"
+        case .waitingHuman:
+            return "hand.raised.fill"
+        case .completed:
+            return "checkmark.circle.fill"
+        case .failed:
+            return "xmark.octagon.fill"
+        case .cancelled:
+            return "stop.circle.fill"
+        }
     }
 
     private func latestFailureBanner(_ failedStage: StageRunRecord) -> some View {
@@ -176,8 +481,12 @@ struct PipelineEditorView: View {
             }
             .buttonStyle(.borderedProminent)
             .controlSize(.small)
-            .disabled(vm.isExecuting)
-            .help(vm.isExecuting ? "Another pipeline is currently running." : "Retry this failed stage only.")
+            .disabled(vm.isPipelineExecuting(pipeline.id) || vm.isPipelineQueued(pipeline.id))
+            .help(
+                vm.isPipelineQueued(pipeline.id)
+                    ? "This pipeline is already queued."
+                    : (vm.isPipelineExecuting(pipeline.id) ? "This pipeline is currently running." : "Retry this failed stage only.")
+            )
         }
         .padding(.horizontal, 10)
         .padding(.vertical, 8)
@@ -274,7 +583,7 @@ struct PipelineEditorView: View {
             .background(.quaternary.opacity(0.3), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
         }
         .buttonStyle(.plain)
-        .disabled(isPipelineExecuting || pipeline.isLockedAfterRun)
+        .disabled(isPipelineExecuting)
     }
 
     // MARK: - Add Stage Sheet
@@ -311,7 +620,7 @@ struct PipelineEditorView: View {
                     showAddStage = false
                 }
                 .keyboardShortcut(.defaultAction)
-                .disabled(isPipelineExecuting || pipeline.isLockedAfterRun)
+                .disabled(isPipelineExecuting)
             }
         }
         .padding(24)
@@ -321,9 +630,6 @@ struct PipelineEditorView: View {
     private var editPipelineHelpText: String {
         if isPipelineExecuting {
             return "Stop this pipeline run before editing pipeline settings."
-        }
-        if pipeline.isLockedAfterRun {
-            return "This pipeline is locked after its first run."
         }
         return "Edit pipeline name and project directory."
     }
@@ -355,12 +661,12 @@ struct EditPipelineSheet: View {
                     HStack {
                         TextField("Select project folder", text: $workingDirectory)
                             .textFieldStyle(.roundedBorder)
-                            .disabled(vm.isPipelineExecuting(pipeline.id) || pipeline.isLockedAfterRun)
+                            .disabled(vm.isPipelineExecuting(pipeline.id))
                             .onChange(of: workingDirectory) { _, newValue in
                                 syncNameWithWorkingDirectory(newValue, force: false)
                             }
                         Button("Browse") { browseFolder() }
-                            .disabled(vm.isPipelineExecuting(pipeline.id) || pipeline.isLockedAfterRun)
+                            .disabled(vm.isPipelineExecuting(pipeline.id))
                     }
                     Text("All steps in this pipeline will run inside this project directory.")
                         .font(.caption)
@@ -371,14 +677,10 @@ struct EditPipelineSheet: View {
 
             TextField("Pipeline Name", text: $name)
                 .textFieldStyle(.roundedBorder)
-                .disabled(vm.isPipelineExecuting(pipeline.id) || pipeline.isLockedAfterRun)
+                .disabled(vm.isPipelineExecuting(pipeline.id))
 
             if vm.isPipelineExecuting(pipeline.id) {
                 Label("Stop the current run before editing the pipeline name or project directory.", systemImage: "lock.fill")
-                    .font(.caption)
-                    .foregroundStyle(.orange)
-            } else if pipeline.isLockedAfterRun {
-                Label("This pipeline is locked after its first run.", systemImage: "lock.fill")
                     .font(.caption)
                     .foregroundStyle(.orange)
             }
@@ -398,7 +700,6 @@ struct EditPipelineSheet: View {
                 .keyboardShortcut(.defaultAction)
                 .disabled(
                     vm.isPipelineExecuting(pipeline.id)
-                    || pipeline.isLockedAfterRun
                     || name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
                     || workingDirectory.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
                 )
@@ -434,8 +735,9 @@ struct EditPipelineSheet: View {
 private struct StageCard: View {
     let stage: PipelineStage
     let pipelineID: UUID
-    let isPipelineLocked: Bool
+    let isEditingLocked: Bool
     let isPipelineExecuting: Bool
+    let isAgentExecuting: Bool
     @EnvironmentObject var vm: AppViewModel
 
     var body: some View {
@@ -461,7 +763,7 @@ private struct StageCard: View {
                     StepRow(
                         step: step,
                         pipelineID: pipelineID,
-                        isPipelineLocked: isPipelineLocked,
+                        isEditingLocked: isEditingLocked,
                         isPipelineExecuting: isPipelineExecuting
                     )
                 }
@@ -483,7 +785,7 @@ private struct StageCard: View {
                     .foregroundStyle(.blue)
                 }
                 .buttonStyle(.borderless)
-                .disabled(isPipelineExecuting || isPipelineLocked)
+                .disabled(isEditingLocked)
             }
             .padding(.vertical, 4)
         } label: {
@@ -517,7 +819,7 @@ private struct StageCard: View {
                     .padding(.horizontal, 6).padding(.vertical, 2)
                     .background(.quaternary, in: Capsule())
 
-                if !isPipelineExecuting && canRetryStage {
+                if !isPipelineExecuting && !isAgentExecuting && !vm.isPipelineQueued(pipelineID) && canRetryStage {
                     Button {
                         Task { await vm.retryStage(stage.id, in: pipelineID) }
                     } label: {
@@ -525,7 +827,7 @@ private struct StageCard: View {
                             .font(.caption2)
                     }
                     .buttonStyle(.borderless)
-                    .disabled(vm.isExecuting)
+                    .disabled(vm.isPipelineExecuting(pipelineID) || vm.isPipelineQueued(pipelineID))
                     .help(stageRetryHelpText)
                 }
 
@@ -535,9 +837,9 @@ private struct StageCard: View {
                     Image(systemName: "trash").font(.caption)
                 }
                 .buttonStyle(.borderless)
-                .disabled(isPipelineExecuting || isPipelineLocked)
+                .disabled(isEditingLocked)
 
-                if isPipelineExecuting {
+                if isPipelineExecuting && !isAgentExecuting {
                     Button {
                         vm.stopStage(stage.id, in: pipelineID)
                     } label: {
@@ -546,7 +848,7 @@ private struct StageCard: View {
                             .foregroundStyle(isStoppingStage ? .orange : .red)
                     }
                     .buttonStyle(.borderless)
-                    .disabled(!canStopStage || isStoppingStage || vm.isStopRequested)
+                    .disabled(!canStopStage || isStoppingStage || vm.isPipelineStopRequested(pipelineID))
                     .help(stageStopHelpText)
                 }
             }
@@ -554,7 +856,7 @@ private struct StageCard: View {
     }
 
     private var canStopStage: Bool {
-        guard isPipelineExecuting else { return false }
+        guard isPipelineExecuting, !isAgentExecuting else { return false }
         return stage.steps.contains { step in
             let status = vm.stepStatuses[step.id] ?? .pending
             return status == .pending || status == .running
@@ -572,12 +874,15 @@ private struct StageCard: View {
     }
 
     private var isStoppingStage: Bool {
-        vm.isStageStopRequested(stage.id)
+        vm.isStageStopRequested(stage.id, in: pipelineID)
     }
 
     private var stageStopHelpText: String {
         guard isPipelineExecuting else { return "This pipeline is not running." }
-        if vm.isStopRequested {
+        if isAgentExecuting {
+            return "Stage-level stop is unavailable in Agent mode."
+        }
+        if vm.isPipelineStopRequested(pipelineID) {
             return "Pipeline stop has been requested."
         }
         if isStoppingStage {
@@ -590,8 +895,11 @@ private struct StageCard: View {
     }
 
     private var stageRetryHelpText: String {
-        if vm.isExecuting {
-            return "Another pipeline is currently running."
+        if vm.isPipelineQueued(pipelineID) {
+            return "This pipeline is already queued."
+        }
+        if vm.isPipelineExecuting(pipelineID) {
+            return "This pipeline is currently running."
         }
         return "Retry this failed stage only."
     }
@@ -612,7 +920,7 @@ private struct StageCard: View {
 private struct StepRow: View {
     let step: PipelineStep
     let pipelineID: UUID
-    let isPipelineLocked: Bool
+    let isEditingLocked: Bool
     let isPipelineExecuting: Bool
     @EnvironmentObject var vm: AppViewModel
 
@@ -658,6 +966,18 @@ private struct StepRow: View {
 
             statusBadge
 
+            if !isPipelineExecuting && !vm.isPipelineQueued(pipelineID) && canRetryStep {
+                Button {
+                    Task { await vm.retryStep(step.id, in: pipelineID) }
+                } label: {
+                    Label("Retry", systemImage: "arrow.clockwise")
+                        .font(.caption2)
+                }
+                .buttonStyle(.borderless)
+                .disabled(vm.isPipelineExecuting(pipelineID) || vm.isPipelineQueued(pipelineID))
+                .help(stepRetryHelpText)
+            }
+
             Button(role: .destructive) {
                 vm.deleteStep(step.id, from: pipelineID)
             } label: {
@@ -665,7 +985,7 @@ private struct StepRow: View {
                     .foregroundStyle(.secondary)
             }
             .buttonStyle(.borderless)
-            .disabled(isPipelineExecuting || isPipelineLocked)
+            .disabled(isEditingLocked)
         }
         .padding(.vertical, 6)
         .padding(.horizontal, 8)
@@ -683,10 +1003,7 @@ private struct StepRow: View {
 
     @ViewBuilder
     private var statusBadge: some View {
-        let latestKnownStatus = vm.latestStepStatus(pipelineID: pipelineID, stepID: step.id)
-        let status = isPipelineExecuting
-            ? (vm.stepStatuses[step.id] ?? latestKnownStatus ?? step.status)
-            : (latestKnownStatus ?? step.status)
+        let status = displayStatus
         HStack(spacing: 4) {
             Circle()
                 .fill(statusColor(status))
@@ -695,6 +1012,35 @@ private struct StepRow: View {
                 .font(.caption2)
                 .foregroundStyle(.secondary)
         }
+    }
+
+    private var latestKnownStatus: StepStatus? {
+        vm.latestStepStatus(pipelineID: pipelineID, stepID: step.id)
+    }
+
+    private var displayStatus: StepStatus {
+        isPipelineExecuting
+            ? (vm.stepStatuses[step.id] ?? latestKnownStatus ?? step.status)
+            : (latestKnownStatus ?? step.status)
+    }
+
+    private var canRetryStep: Bool {
+        switch latestKnownStatus {
+        case .failed, .skipped:
+            return true
+        default:
+            return false
+        }
+    }
+
+    private var stepRetryHelpText: String {
+        if vm.isPipelineQueued(pipelineID) {
+            return "This pipeline is already queued."
+        }
+        if vm.isPipelineExecuting(pipelineID) {
+            return "This pipeline is currently running."
+        }
+        return "Retry this failed or skipped step only."
     }
 
     private func statusColor(_ status: StepStatus) -> Color {

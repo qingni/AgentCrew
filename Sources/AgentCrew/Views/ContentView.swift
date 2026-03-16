@@ -234,6 +234,15 @@ struct ContentView: View {
                                 .background(.purple.opacity(0.14), in: Capsule())
                                 .fixedSize()
                         }
+                        if pipeline.preferredRunMode == .agent {
+                            Text("Agent")
+                                .font(.caption2.bold())
+                                .foregroundStyle(.orange)
+                                .padding(.horizontal, 6)
+                                .padding(.vertical, 1)
+                                .background(.orange.opacity(0.14), in: Capsule())
+                                .fixedSize()
+                        }
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
                     Text(
@@ -244,12 +253,6 @@ struct ContentView: View {
                         .lineLimit(1)
                 }
                 Spacer(minLength: 6)
-                if pipeline.isLockedAfterRun {
-                    Label("Locked", systemImage: "lock.fill")
-                        .font(.caption2)
-                        .foregroundStyle(.orange)
-                        .labelStyle(.titleAndIcon)
-                }
             }
             .padding(.vertical, 2)
         }
@@ -257,11 +260,12 @@ struct ContentView: View {
             Button("Edit", systemImage: "pencil") {
                 editingPipeline = pipeline
             }
-            .disabled(vm.isPipelineExecuting(pipeline.id) || pipeline.isLockedAfterRun)
+            .disabled(vm.isPipelineExecuting(pipeline.id))
 
             Button("Delete", role: .destructive) {
                 vm.deletePipeline(pipeline.id)
             }
+            .disabled(vm.isPipelineExecuting(pipeline.id) || vm.isPipelineQueued(pipeline.id))
         }
     }
 
@@ -721,144 +725,313 @@ private struct SettingsSheet: View {
     @State private var isDetecting = false
     @State private var recommendedProfile: CLIProfile?
     @State private var showPolicyEditor = false
+    @State private var analyticsStatusMessage = ""
+    @State private var analyticsStatusIsError = false
+    @State private var notificationStatusMessage = ""
+    @State private var notificationStatusIsError = false
+    @State private var isRequestingNotificationPermission = false
+    @State private var isSendingNotificationTest = false
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            Text("Settings").font(.title2.bold())
+        VStack(spacing: 0) {
+            HStack {
+                Text("Settings")
+                    .font(.title2.bold())
+                Spacer()
+            }
+            .padding(.horizontal, 24)
+            .padding(.top, 24)
+            .padding(.bottom, 16)
 
-            GroupBox("CLI Environment") {
-                VStack(alignment: .leading, spacing: 12) {
-                    HStack {
-                        Text("Environment")
-                            .font(.subheadline)
-                        Spacer()
-                        Picker("", selection: Binding(
-                            get: { profileManager.activeProfile.id },
-                            set: { newID in
-                                if let profile = CLIProfile.builtInProfiles.first(where: { $0.id == newID }) {
-                                    profileManager.selectProfile(profile)
+            Divider()
+
+            ScrollView {
+                VStack(alignment: .leading, spacing: 16) {
+                    GroupBox("CLI Environment") {
+                        VStack(alignment: .leading, spacing: 12) {
+                            HStack {
+                                Text("Environment")
+                                    .font(.subheadline)
+                                Spacer()
+                                Picker("", selection: Binding(
+                                    get: { profileManager.activeProfile.id },
+                                    set: { newID in
+                                        if let profile = CLIProfile.builtInProfiles.first(where: { $0.id == newID }) {
+                                            profileManager.selectProfile(profile)
+                                        }
+                                    }
+                                )) {
+                                    ForEach(CLIProfile.builtInProfiles, id: \.id) { profile in
+                                        Text(profile.name).tag(profile.id)
+                                    }
+                                }
+                                .pickerStyle(.menu)
+                                .frame(maxWidth: 200)
+                            }
+
+                            Divider()
+
+                            if isDetecting {
+                                HStack(spacing: 8) {
+                                    ProgressView().controlSize(.small)
+                                    Text("Detecting CLI tools...")
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                }
+                            } else if !detectionResults.isEmpty {
+                                LazyVGrid(columns: [
+                                    GridItem(.flexible()),
+                                    GridItem(.flexible()),
+                                ], spacing: 6) {
+                                    ForEach(detectionResults, id: \.executable) { result in
+                                        HStack(spacing: 6) {
+                                            Image(systemName: result.found ? "checkmark.circle.fill" : "xmark.circle")
+                                                .foregroundStyle(result.found ? .green : .secondary)
+                                                .font(.caption)
+                                            Text(result.executable)
+                                                .font(.system(.caption, design: .monospaced))
+                                            Spacer()
+                                        }
+                                        .padding(.vertical, 3)
+                                        .padding(.horizontal, 8)
+                                        .background(
+                                            result.found
+                                                ? Color.green.opacity(0.08)
+                                                : Color.secondary.opacity(0.06),
+                                            in: RoundedRectangle(cornerRadius: 6)
+                                        )
+                                    }
                                 }
                             }
-                        )) {
-                            ForEach(CLIProfile.builtInProfiles, id: \.id) { profile in
-                                Text(profile.name).tag(profile.id)
+
+                            if let recommended = recommendedProfile,
+                               recommended.id != profileManager.activeProfile.id {
+                                HStack(spacing: 8) {
+                                    Image(systemName: "exclamationmark.triangle.fill")
+                                        .foregroundStyle(.orange)
+                                    VStack(alignment: .leading, spacing: 2) {
+                                        Text("Detected environment mismatch")
+                                            .font(.caption.bold())
+                                        Text("Your system has **\(recommended.name)** tools, but the current environment is set to **\(profileManager.activeProfile.name)**.")
+                                            .font(.caption2)
+                                            .foregroundStyle(.secondary)
+                                    }
+                                    Spacer()
+                                    Button("Switch to \(recommended.name)") {
+                                        withAnimation { profileManager.selectProfile(recommended) }
+                                    }
+                                    .controlSize(.small)
+                                    .buttonStyle(.borderedProminent)
+                                    .tint(.orange)
+                                }
+                                .padding(8)
+                                .background(Color.orange.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
                             }
-                        }
-                        .pickerStyle(.menu)
-                        .frame(maxWidth: 200)
-                    }
 
-                    Divider()
+                            ForEach(ToolType.allCases) { tool in
+                                cliToolRow(tool)
+                            }
 
-                    if isDetecting {
-                        HStack(spacing: 8) {
-                            ProgressView().controlSize(.small)
-                            Text("Detecting CLI tools...")
-                                .font(.caption)
+                            Text("Switching environment updates all pipeline steps that don't have a custom command override.")
+                                .font(.caption2)
                                 .foregroundStyle(.secondary)
                         }
-                    } else if !detectionResults.isEmpty {
-                        LazyVGrid(columns: [
-                            GridItem(.flexible()),
-                            GridItem(.flexible()),
-                        ], spacing: 6) {
-                            ForEach(detectionResults, id: \.executable) { result in
-                                HStack(spacing: 6) {
-                                    Image(systemName: result.found ? "checkmark.circle.fill" : "xmark.circle")
-                                        .foregroundStyle(result.found ? .green : .secondary)
-                                        .font(.caption)
-                                    Text(result.executable)
-                                        .font(.system(.caption, design: .monospaced))
-                                    Spacer()
-                                }
-                                .padding(.vertical, 3)
-                                .padding(.horizontal, 8)
-                                .background(
-                                    result.found
-                                        ? Color.green.opacity(0.08)
-                                        : Color.secondary.opacity(0.06),
-                                    in: RoundedRectangle(cornerRadius: 6)
-                                )
-                            }
-                        }
+                        .padding(8)
                     }
 
-                    if let recommended = recommendedProfile,
-                       recommended.id != profileManager.activeProfile.id {
-                        HStack(spacing: 8) {
-                            Image(systemName: "exclamationmark.triangle.fill")
-                                .foregroundStyle(.orange)
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text("Detected environment mismatch")
-                                    .font(.caption.bold())
-                                Text("Your system has **\(recommended.name)** tools, but the current environment is set to **\(profileManager.activeProfile.name)**.")
+                    GroupBox("AI Pipeline Generator") {
+                        VStack(alignment: .leading, spacing: 8) {
+                            TextField("Default Model", text: $vm.llmConfig.model)
+                                .textFieldStyle(.roundedBorder)
+
+                            HStack {
+                                Text("Customize planner policy when needed.")
                                     .font(.caption2)
                                     .foregroundStyle(.secondary)
+                                Spacer()
+                                Button("Edit Prompt Policy…") {
+                                    showPolicyEditor = true
+                                }
+                                .controlSize(.small)
                             }
-                            Spacer()
-                            Button("Switch to \(recommended.name)") {
-                                withAnimation { profileManager.selectProfile(recommended) }
+
+                            if trimmedCustomPolicy.isEmpty {
+                                Text("Using built-in planning policy.")
+                                    .font(.caption2)
+                                    .foregroundStyle(.secondary)
+                            } else {
+                                Text("Custom policy enabled")
+                                    .font(.caption2.bold())
+                                Text(trimmedCustomPolicy)
+                                    .font(.caption2)
+                                    .foregroundStyle(.secondary)
+                                    .lineLimit(2)
                             }
-                            .controlSize(.small)
-                            .buttonStyle(.borderedProminent)
-                            .tint(.orange)
                         }
                         .padding(8)
-                        .background(Color.orange.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
                     }
 
-                    ForEach(ToolType.allCases) { tool in
-                        cliToolRow(tool)
-                    }
+                    GroupBox("Execution Scheduling") {
+                        VStack(alignment: .leading, spacing: 8) {
+                            Stepper(
+                                value: $vm.maxConcurrentPipelineRuns,
+                                in: 1...4
+                            ) {
+                                HStack {
+                                    Text("Max concurrent pipeline runs")
+                                    Spacer()
+                                    Text("\(vm.maxConcurrentPipelineRuns)")
+                                        .font(.caption.bold())
+                                        .foregroundStyle(.secondary)
+                                }
+                            }
 
-                    Text("Switching environment updates all pipeline steps that don't have a custom command override.")
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
-                }
-                .padding(8)
-            }
-
-            GroupBox("AI Pipeline Generator") {
-                VStack(alignment: .leading, spacing: 8) {
-                    TextField("Default Model", text: $vm.llmConfig.model)
-                        .textFieldStyle(.roundedBorder)
-
-                    HStack {
-                        Text("Customize planner policy when needed.")
-                            .font(.caption2)
-                            .foregroundStyle(.secondary)
-                        Spacer()
-                        Button("Edit Prompt Policy…") {
-                            showPolicyEditor = true
+                            Text("Pipelines sharing the same working directory are automatically serialized for safety.")
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
+                                .lineLimit(2)
                         }
-                        .controlSize(.small)
+                        .padding(8)
                     }
 
-                    if trimmedCustomPolicy.isEmpty {
-                        Text("Using built-in planning policy.")
-                            .font(.caption2)
-                            .foregroundStyle(.secondary)
-                    } else {
-                        Text("Custom policy enabled")
-                            .font(.caption2.bold())
-                        Text(trimmedCustomPolicy)
-                            .font(.caption2)
-                            .foregroundStyle(.secondary)
-                            .lineLimit(2)
+                    GroupBox("Execution Notifications") {
+                        VStack(alignment: .leading, spacing: 8) {
+                            Toggle("Enable completion notifications", isOn: executionNotificationsEnabledBinding)
+                                .disabled(isRequestingNotificationPermission)
+
+                            if vm.executionNotificationSettings.isEnabled {
+                                Toggle("Notify when completed", isOn: $vm.executionNotificationSettings.notifyOnCompleted)
+                                Toggle("Notify when failed", isOn: $vm.executionNotificationSettings.notifyOnFailed)
+                                Toggle("Notify when cancelled", isOn: $vm.executionNotificationSettings.notifyOnCancelled)
+                                Toggle("Play sound", isOn: $vm.executionNotificationSettings.playSound)
+                            }
+
+                            Text(notificationAuthorizationHint)
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
+                                .lineLimit(2)
+
+                            HStack(spacing: 8) {
+                                Button("Send Test Notification") {
+                                    sendExecutionTestNotification()
+                                }
+                                .controlSize(.small)
+                                .disabled(!vm.executionNotificationSettings.isEnabled || isSendingNotificationTest)
+
+                                if isRequestingNotificationPermission || isSendingNotificationTest {
+                                    ProgressView()
+                                        .controlSize(.small)
+                                }
+                                Spacer(minLength: 0)
+                            }
+
+                            if !notificationStatusMessage.isEmpty {
+                                Text(notificationStatusMessage)
+                                    .font(.caption2)
+                                    .foregroundStyle(notificationStatusIsError ? .red : .secondary)
+                            }
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(8)
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+
+                    GroupBox("Mode Recommendation Analytics") {
+                        VStack(alignment: .leading, spacing: 10) {
+                            HStack(spacing: 8) {
+                                analyticsMetricCard(
+                                    title: "Acceptance Rate",
+                                    value: acceptanceRateText,
+                                    subtitle: "Accepted \(vm.modeRecommendationAcceptedCount) / Shown \(vm.modeRecommendationShownCount)",
+                                    tint: .green
+                                )
+                                analyticsMetricCard(
+                                    title: "Runtime Switch",
+                                    value: "\(vm.modeRuntimeSwitchCount)",
+                                    subtitle: "Switched from runtime suggestion",
+                                    tint: .purple
+                                )
+                                analyticsMetricCard(
+                                    title: "Dismissed",
+                                    value: "\(vm.modeRecommendationDismissedCount)",
+                                    subtitle: "User dismissed recommendation",
+                                    tint: .orange
+                                )
+                            }
+
+                            VStack(alignment: .leading, spacing: 6) {
+                                Text("7-Day Trend (Shown vs Accepted)")
+                                    .font(.caption2.bold())
+
+                                HStack(alignment: .bottom, spacing: 6) {
+                                    ForEach(dailyTrendPoints) { point in
+                                        dailyTrendColumn(point)
+                                    }
+                                }
+
+                                HStack(spacing: 10) {
+                                    analyticsLegendDot(color: .blue, label: "Shown")
+                                    analyticsLegendDot(color: .green, label: "Accepted")
+                                }
+                            }
+
+                            Text(analyticsSummaryText)
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
+                                .lineLimit(2)
+
+                            Text(vm.modeAnalyticsLogPath)
+                                .font(.system(.caption2, design: .monospaced))
+                                .foregroundStyle(.secondary)
+                                .lineLimit(2)
+                                .textSelection(.enabled)
+
+                            HStack(spacing: 8) {
+                                Button("Open in Finder") {
+                                    openModeAnalyticsLogInFinder()
+                                }
+                                .controlSize(.small)
+
+                                Button("Export JSONL…") {
+                                    exportModeAnalyticsLog()
+                                }
+                                .controlSize(.small)
+
+                                Button("Clear Log") {
+                                    clearModeAnalyticsLog()
+                                }
+                                .controlSize(.small)
+                            }
+
+                            if !analyticsStatusMessage.isEmpty {
+                                Text(analyticsStatusMessage)
+                                    .font(.caption2)
+                                    .foregroundStyle(analyticsStatusIsError ? .red : .secondary)
+                            }
+                        }
+                        .padding(8)
                     }
                 }
-                .padding(8)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.horizontal, 24)
+                .padding(.vertical, 16)
             }
+
+            Divider()
 
             HStack {
                 Spacer()
                 Button("Done") { dismiss() }
                     .keyboardShortcut(.defaultAction)
             }
+            .padding(.horizontal, 24)
+            .padding(.vertical, 12)
         }
-        .padding(24)
-        .frame(width: 480)
-        .task { await runDetection() }
+        .frame(width: 560, height: 700)
+        .task {
+            await runDetection()
+            await vm.refreshExecutionNotificationAuthorizationState()
+        }
         .sheet(isPresented: $showPolicyEditor) {
             PlanningPolicyEditorSheet(customPolicy: customPolicyBinding)
         }
@@ -888,8 +1061,151 @@ private struct SettingsSheet: View {
         )
     }
 
+    private var executionNotificationsEnabledBinding: Binding<Bool> {
+        Binding(
+            get: { vm.executionNotificationSettings.isEnabled },
+            set: { shouldEnable in
+                notificationStatusMessage = ""
+
+                if !shouldEnable {
+                    vm.executionNotificationSettings.isEnabled = false
+                    notificationStatusIsError = false
+                    notificationStatusMessage = "Execution notifications disabled."
+                    return
+                }
+
+                isRequestingNotificationPermission = true
+                Task {
+                    let granted = await vm.setExecutionNotificationsEnabled(true)
+                    await MainActor.run {
+                        isRequestingNotificationPermission = false
+                        if granted {
+                            notificationStatusIsError = false
+                            notificationStatusMessage = "Execution notifications enabled."
+                        } else {
+                            notificationStatusIsError = true
+                            notificationStatusMessage = "Permission denied. Enable AgentCrew in System Settings > Notifications."
+                        }
+                    }
+                }
+            }
+        )
+    }
+
+    private var notificationAuthorizationHint: String {
+        switch vm.executionNotificationAuthorizationState {
+        case .authorized:
+            return "Notification permission is granted."
+        case .denied:
+            return "Notification permission is denied. Open System Settings > Notifications > AgentCrew to allow alerts."
+        case .notDetermined:
+            return "Permission has not been requested yet."
+        }
+    }
+
     private var trimmedCustomPolicy: String {
         vm.llmConfig.customPolicy.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private var analyticsSummaryText: String {
+        let counts = vm.modeAnalyticsEventTypeCounts
+        if counts.isEmpty {
+            return "No analytics events have been recorded yet."
+        }
+        return ModeAnalyticsEventType.allCases
+            .compactMap { type in
+                guard let count = counts[type], count > 0 else { return nil }
+                return "\(type.rawValue): \(count)"
+            }
+            .joined(separator: " · ")
+    }
+
+    private var dailyTrendPoints: [AppViewModel.ModeAnalyticsDailyPoint] {
+        vm.modeAnalyticsDailyTrendLast7Days
+    }
+
+    private var maxDailyTrendValue: Int {
+        max(
+            1,
+            dailyTrendPoints.map { max($0.shownCount, $0.acceptedCount) }.max() ?? 1
+        )
+    }
+
+    private var acceptanceRateText: String {
+        percentageText(vm.modeRecommendationAcceptanceRate)
+    }
+
+    private func analyticsMetricCard(
+        title: String,
+        value: String,
+        subtitle: String,
+        tint: Color
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 3) {
+            Text(title)
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+            Text(value)
+                .font(.caption.bold())
+                .foregroundStyle(tint)
+            Text(subtitle)
+                .font(.system(size: 10))
+                .foregroundStyle(.secondary)
+                .lineLimit(2)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, 8)
+        .padding(.vertical, 6)
+        .background(tint.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+    }
+
+    private func dailyTrendColumn(_ point: AppViewModel.ModeAnalyticsDailyPoint) -> some View {
+        VStack(spacing: 4) {
+            HStack(alignment: .bottom, spacing: 3) {
+                RoundedRectangle(cornerRadius: 2)
+                    .fill(.blue)
+                    .frame(width: 7, height: trendBarHeight(point.shownCount))
+                RoundedRectangle(cornerRadius: 2)
+                    .fill(.green)
+                    .frame(width: 7, height: trendBarHeight(point.acceptedCount))
+            }
+            .frame(height: 44, alignment: .bottom)
+
+            Text(shortDayLabel(for: point.dayStart))
+                .font(.system(size: 9, weight: .medium))
+                .foregroundStyle(.secondary)
+        }
+        .frame(maxWidth: .infinity)
+        .help(
+            "Shown \(point.shownCount), Accepted \(point.acceptedCount), Acceptance \(percentageText(point.acceptanceRate))"
+        )
+    }
+
+    private func analyticsLegendDot(color: Color, label: String) -> some View {
+        HStack(spacing: 4) {
+            Circle()
+                .fill(color)
+                .frame(width: 7, height: 7)
+            Text(label)
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+        }
+    }
+
+    private func trendBarHeight(_ value: Int) -> CGFloat {
+        guard value > 0 else { return 0 }
+        let raw = CGFloat(value) / CGFloat(maxDailyTrendValue) * 42
+        return max(2, raw)
+    }
+
+    private func shortDayLabel(for date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "MM/dd"
+        return formatter.string(from: date)
+    }
+
+    private func percentageText(_ value: Double) -> String {
+        "\(Int((value * 100).rounded()))%"
     }
 
     private func runDetection() async {
@@ -900,5 +1216,66 @@ private struct SettingsSheet: View {
             recommendedProfile = recommended
             isDetecting = false
         }
+    }
+
+    private func sendExecutionTestNotification() {
+        notificationStatusMessage = ""
+        isSendingNotificationTest = true
+
+        Task {
+            do {
+                try await vm.sendExecutionNotificationTest()
+                await MainActor.run {
+                    isSendingNotificationTest = false
+                    notificationStatusIsError = false
+                    notificationStatusMessage = "Test notification scheduled (3s). Switch to another app to verify banner delivery."
+                }
+            } catch {
+                await MainActor.run {
+                    isSendingNotificationTest = false
+                    notificationStatusIsError = true
+                    notificationStatusMessage = "Failed to send test notification: \(error.localizedDescription)"
+                }
+            }
+        }
+    }
+
+    private func openModeAnalyticsLogInFinder() {
+        let logURL = vm.modeAnalyticsLogURL
+        if FileManager.default.fileExists(atPath: logURL.path) {
+            NSWorkspace.shared.activateFileViewerSelecting([logURL])
+        } else {
+            NSWorkspace.shared.activateFileViewerSelecting([logURL.deletingLastPathComponent()])
+        }
+    }
+
+    private func exportModeAnalyticsLog() {
+        let panel = NSSavePanel()
+        panel.canCreateDirectories = true
+        panel.nameFieldStringValue = defaultAnalyticsExportFileName
+        panel.title = "Export Mode Analytics Log"
+        panel.prompt = "Export"
+
+        guard panel.runModal() == .OK, let destinationURL = panel.url else { return }
+        do {
+            try vm.exportModeAnalyticsLog(to: destinationURL)
+            analyticsStatusIsError = false
+            analyticsStatusMessage = "Exported to \(destinationURL.path)"
+        } catch {
+            analyticsStatusIsError = true
+            analyticsStatusMessage = "Export failed: \(error.localizedDescription)"
+        }
+    }
+
+    private func clearModeAnalyticsLog() {
+        vm.clearModeAnalyticsLog()
+        analyticsStatusIsError = false
+        analyticsStatusMessage = "Local mode analytics log cleared."
+    }
+
+    private var defaultAnalyticsExportFileName: String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyyMMdd-HHmmss"
+        return "mode-analytics-\(formatter.string(from: Date())).jsonl"
     }
 }

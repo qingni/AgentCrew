@@ -13,7 +13,7 @@ enum PlannerError: Error, LocalizedError {
     var errorDescription: String? {
         switch self {
         case .cliUnavailable:
-            "Agent CLI is not available. Make sure `agent` is installed and logged in."
+            "Agent CLI is not available. Make sure `cursor-agent` is installed and logged in."
         case .commandFailed(let msg):
             "Agent CLI failed: \(msg)"
         case .cancelled:

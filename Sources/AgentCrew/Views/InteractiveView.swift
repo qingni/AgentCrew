@@ -3,6 +3,7 @@ import SwiftUI
 struct InteractiveView: View {
     @ObservedObject private var profileManager = CLIProfileManager.shared
     @State private var selectedTool: ToolType = .claude
+    @State private var activeTool: ToolType?
     @State private var workingDirectory: String = FileManager.default.homeDirectoryForCurrentUser.path
     @State private var sessionActive = false
     @State private var sessionID = UUID()
@@ -33,6 +34,12 @@ struct InteractiveView: View {
             }
             .pickerStyle(.segmented)
             .frame(maxWidth: 300)
+            .disabled(isToolSelectionLocked)
+            .help(
+                isToolSelectionLocked
+                    ? "\(activeSessionTool.displayName) session is running. Stop or wait for exit before changing tools."
+                    : "Select a tool for the next session."
+            )
 
             Spacer()
 
@@ -69,14 +76,14 @@ struct InteractiveView: View {
             let isSuccess = exitCode == 0
             HStack(spacing: 4) {
                 Image(systemName: isSuccess ? "checkmark.circle.fill" : "xmark.circle.fill")
-                Text("Exited (\(exitCode.map(String.init) ?? "?"))")
+                Text("\(activeSessionTool.displayName) exited (\(exitCode.map(String.init) ?? "?"))")
             }
             .font(.caption)
             .foregroundStyle(isSuccess ? .green : .red)
         } else {
             HStack(spacing: 4) {
                 ProgressView().controlSize(.mini)
-                Text("Running")
+                Text("\(activeSessionTool.displayName) running")
             }
             .font(.caption)
             .foregroundStyle(.secondary)
@@ -178,7 +185,7 @@ struct InteractiveView: View {
             executable: shell,
             arguments: ["-l"],
             workingDirectory: workingDirectory,
-            initialCommand: selectedTool.interactiveCommand(profile: profileManager.activeProfile),
+            initialCommand: activeSessionTool.interactiveCommand(profile: profileManager.activeProfile),
             onProcessExit: { code in
                 processExited = true
                 exitCode = code
@@ -189,7 +196,16 @@ struct InteractiveView: View {
 
     // MARK: - Actions
 
+    private var isToolSelectionLocked: Bool {
+        sessionActive && !processExited
+    }
+
+    private var activeSessionTool: ToolType {
+        activeTool ?? selectedTool
+    }
+
     private func startSession() {
+        activeTool = selectedTool
         processExited = false
         exitCode = nil
         sessionID = UUID()
@@ -198,12 +214,16 @@ struct InteractiveView: View {
 
     private func stopSession() {
         sessionActive = false
+        activeTool = nil
         processExited = false
         exitCode = nil
     }
 
     private func restartSession() {
         sessionActive = false
+        activeTool = nil
+        processExited = false
+        exitCode = nil
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
             startSession()
         }

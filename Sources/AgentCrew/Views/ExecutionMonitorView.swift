@@ -37,8 +37,8 @@ struct ExecutionMonitorView: View {
                 selectedTab = .running
             }
         }
-        .onChange(of: vm.executingPipelineID) { _, executingPipelineID in
-            if executingPipelineID == pipeline.id {
+        .onChange(of: vm.isPipelineExecuting(pipeline.id)) { _, isRunning in
+            if isRunning {
                 selectedTab = .running
             }
         }
@@ -214,6 +214,16 @@ struct ExecutionMonitorView: View {
                         .font(.caption2)
                         .foregroundStyle(.secondary)
                 }
+            }
+
+            if let context = runContextText(run) {
+                Text(context)
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            }
+
+            if let coverageItems = run.coverageSnapshot, !coverageItems.isEmpty {
+                coverageSection(coverageItems)
             }
 
             HStack(spacing: 6) {
@@ -417,6 +427,81 @@ struct ExecutionMonitorView: View {
         formatter.allowedUnits = duration >= 3600 ? [.hour, .minute, .second] : [.minute, .second]
         formatter.zeroFormattingBehavior = [.pad]
         return formatter.string(from: duration) ?? "\(Int(duration))s"
+    }
+
+    private func runContextText(_ run: PipelineRunRecord) -> String? {
+        let isAgentRun = run.orchestrationMode == .agent
+            || run.agentRoundIndex != nil
+            || run.agentStrategy != nil
+        guard isAgentRun else { return nil }
+
+        var parts: [String] = ["Agent"]
+        if let round = run.agentRoundIndex {
+            parts.append("Round \(round)")
+        }
+        if let strategy = run.agentStrategy {
+            parts.append(strategy.displayName)
+        }
+        return parts.joined(separator: " · ")
+    }
+
+    private func coverageSection(_ items: [AgentCoverageItem]) -> some View {
+        let sortedItems = items.sorted { lhs, rhs in
+            if lhs.isResolved != rhs.isResolved {
+                return !lhs.isResolved
+            }
+            if lhs.firstFailedRound != rhs.firstFailedRound {
+                return lhs.firstFailedRound < rhs.firstFailedRound
+            }
+            return lhs.sourceStepName.localizedCaseInsensitiveCompare(rhs.sourceStepName) == .orderedAscending
+        }
+        let resolvedCount = sortedItems.filter(\.isResolved).count
+
+        return VStack(alignment: .leading, spacing: 5) {
+            HStack(spacing: 6) {
+                Image(systemName: "checkmark.shield")
+                    .foregroundStyle(resolvedCount == sortedItems.count ? .green : .orange)
+                Text("Coverage Contract")
+                    .font(.caption.bold())
+                Text("\(resolvedCount)/\(sortedItems.count) resolved")
+                    .font(.caption2)
+                    .foregroundStyle(resolvedCount == sortedItems.count ? .green : .orange)
+            }
+
+            ForEach(sortedItems) { item in
+                VStack(alignment: .leading, spacing: 2) {
+                    HStack(spacing: 6) {
+                        Image(systemName: item.isResolved ? "checkmark.circle.fill" : "exclamationmark.triangle.fill")
+                            .foregroundStyle(item.isResolved ? .green : .orange)
+                            .font(.caption2)
+                        Text(item.sourceStepName)
+                            .font(.caption.bold())
+                            .lineLimit(1)
+                        Spacer()
+                        Text(coverageStatusText(item))
+                            .font(.caption2)
+                            .foregroundStyle(item.isResolved ? .green : .orange)
+                    }
+                    if let note = item.evidenceNote, !note.isEmpty {
+                        Text(note)
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(2)
+                    }
+                }
+                .padding(.vertical, 2)
+            }
+        }
+        .padding(8)
+        .background(.background.opacity(0.4), in: RoundedRectangle(cornerRadius: 6))
+    }
+
+    private func coverageStatusText(_ item: AgentCoverageItem) -> String {
+        guard let round = item.recoveredRound else { return "Pending" }
+        if let strategy = item.recoveredByStrategy {
+            return "Round \(round) · \(strategy.displayName)"
+        }
+        return "Round \(round)"
     }
 
     private func toggleStageExpansion(_ stageRunID: UUID) {

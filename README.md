@@ -1,168 +1,161 @@
-# AgentCrew
+<div align="center">
+  <img src="Sources/AgentCrew/Assets.xcassets/AppIcon.appiconset/agentcrew_256x256.png" alt="AgentCrew Logo" width="128" />
+  <h1>AgentCrew</h1>
+  <p><b>一个面向 macOS 的本地 AI CLI 编排工作台（Orchestration Workbench）</b></p>
+  
+  <p>将 <code>Codex</code>、<code>Claude</code>、<code>Cursor-Agent</code> 等多种 AI 工具无缝组织成可视化工作流，在同一个项目中完成<b>实现、审查、修复、验证与人工重试</b>的完整闭环。</p>
 
-`AgentCrew` 是一个面向 macOS 的本地 AI CLI 编排工具，用来把 `Codex`、`Claude`、`Cursor/agent` 组织成可视化 Pipeline，并按依赖关系自动执行。
+  <p>
+    <a href="https://developer.apple.com/macos/"><img src="https://img.shields.io/badge/macOS-14.0+-000000?style=for-the-badge&logo=apple&logoColor=white" alt="macOS 14.0+"></a>
+    <a href="https://swift.org"><img src="https://img.shields.io/badge/Swift-5.9+-F05138?style=for-the-badge&logo=swift&logoColor=white" alt="Swift 5.9+"></a>
+    <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-blue.svg?style=for-the-badge" alt="License"></a>
+  </p>
+</div>
 
-它的核心目标不是替代某一个 AI 工具，而是提供一个统一的 orchestration layer，让你可以把多种 AI CLI 串成一条可复用的工作流，例如：
+---
 
-- `Codex` 负责实现功能
-- `Cursor` 或 `Claude` 负责复审
-- 失败后按阶段重试或继续后续步骤
+## ✨ 核心亮点 (Key Features)
 
-## 核心能力
+AgentCrew 并非要替代某一个具体的 AI 聊天工具，而是提供一个统一的 **Orchestration Layer**，让多种 AI CLI 能以更稳定、可复用、可观察的方式协作。
 
-- 可视化 Pipeline 编辑：按 `Stage -> Step` 组织任务
-- 多工具混合执行：支持 `Codex`、`Claude`、`Cursor`
-- AI 自动生成 Pipeline：输入自然语言任务，自动拆解为结构化步骤
-- DAG 调度执行：支持并行、串行、显式依赖
-- 运行监控与历史记录：查看步骤状态、输出、失败阶段和重试记录
-- 命令环境切换：支持 `Default (Open Source)` 与 `Internal` 两套 CLI 环境
-- Step 级命令覆盖：默认自动生成命令，也可对单个步骤手动覆盖
-- 交互式终端模式：直接从应用中打开并使用 AI CLI
-- 执行流图：用 Flowchart 查看波次、依赖关系和运行状态
+### 🔄 独创双引擎驱动：Pipeline 与 Agent 模式并存
+同一任务可自由在两种模式间切换，兼顾**执行效率**与**智能闭环**：
+- **⚡️ Pipeline 模式**：基于静态 DAG 工作流，执行路径极短。适合目标明确、步骤固定、追求速度与成本控制的标准化任务。
+- **🧠 Agent 模式**：基于多轮动态执行（Plan -> Execute -> Evaluate -> Replan）。支持自动诊断失败原因、自动补齐修复步骤，并在高风险操作前（如删除、大规模重构）挂起等待**人工审批 (Human-in-the-loop)**。
 
-## 适合的使用场景
+### 🌊 DAG 波次调度与并发执行
+摒弃死板的全串行执行。AgentCrew 自动解析任务步骤之间的显式依赖（Run After）与隐式依赖（Sequential Stage），将可并行的步骤打包成「Wave (波次)」，**最大化利用并发性能**，大幅缩短长链路任务的等待时间。
 
-- 把“实现 -> 复审 -> 修复 -> 验证”固化成标准流程
-- 在同一个项目里组合多个 AI CLI 的长链路协作
-- 对复杂任务做分阶段拆解，并让独立步骤并行执行
-- 为本地代码仓库建立可重复运行的 AI 自动化工作流
+### 🪄 AI 自动生成工作流 (Auto-Planner)
+只需输入一句话自然语言（如：“给项目新增 JWT 用户认证与单测”），系统会自动为你拆解出 `Implement -> Review -> Fix -> Verify` 的结构化步骤，并自动分配合适的底层 AI 工具。
 
-## 项目结构概览
+### 🛠️ 多模型 & 多 CLI 混合编排
+- 深度兼容 `Cursor/cursor-agent`、`Claude`、`Codex`。
+- 支持混合编排：例如用 Cursor 编写代码，用 Claude 进行深度 Review，再用 Codex 运行验证脚本。
+- **智能 Profile 切换**：自动检测本机环境中的开源版/内部特供版命令，无缝切换。
 
-当前项目是一个基于 `SwiftUI` 的原生 macOS 应用，主要由以下几层组成：
+### 💻 极致的 macOS 原生体验
+- 基于 SwiftUI 构建，运行轻量、流畅。
+- 可视化 Flowchart、全链路执行监控、本地系统通知。
+- 支持在 GUI 中直接唤起内置交互式终端（基于 `SwiftTerm`），随时介入 AI 的上下文。
 
-- `Models`
-  - 定义 `Pipeline`、`PipelineStage`、`PipelineStep`
-  - 抽象 CLI 环境配置、工具类型、Planner 数据模型
-- `Views`
-  - 提供 Pipeline 编辑、Step 配置、执行监控、Flowchart、CLI 环境设置等界面
-- `ViewModels`
-  - `AppViewModel` 负责 Pipeline 生命周期、执行状态、AI 规划入口、运行历史等核心状态管理
-- `Services`
-  - `DAGScheduler` 负责依赖解析与波次调度
-  - `AIPlanner` 负责把自然语言任务转成 Pipeline
-  - `CodexRunner` / `ClaudeRunner` / `CursorRunner` / `CommandRunner` 负责实际调用 CLI
+---
 
-## 执行模型
+## 🆚 运行模式对比
 
-AgentCrew 使用的是“基于 DAG 的波次并行调度”模型，而不是简单的全串行或全并行：
+| 维度 | ⚡️ Pipeline 模式 | 🧠 Agent 模式 |
+|------|-------------------|---------------|
+| **适用场景** | 任务明确、步骤固定、追求速度与确定性 | 需求模糊、需要反复“实现-审查-修复”的探索任务 |
+| **计划生成** | 一次性固定生成 | 每轮动态重规划 (Re-planning) |
+| **失败处理** | 任务中止，需人工修改流程后重跑 | 自动诊断并动态生成补救 (Patch) 与验证任务 |
+| **协作方式** | 显式依赖的串行/并行执行 | 多角色协作 (Coder/Reviewer/Fixer) + 评估驱动 |
+| **人工介入** | 失败中止后排查 | 支持中途状态拦截 (ask_human) 审批高危操作 |
+| **成本/速度** | 🚀 更快、Token 消耗更低 | 🛡 更稳健、成功率更高 (相对耗时) |
 
-1. 所有 Step 会先解析出完整依赖关系
-2. 当前依赖已满足的 Step 会组成一个 wave
-3. 同一 wave 内的 Step 并发执行
-4. 当前 wave 完成后，再进入下一 wave
+---
 
-依赖来源有两种：
+## 📊 执行流程图
 
-- 显式依赖：Step 手动选择 `Run After`
-- 隐式依赖：当一个 Stage 设置为 `sequential` 时，同 Stage 的后一个 Step 会自动依赖前一个 Step
+### ⚡️ Pipeline 模式（单次固定计划）
 
-这让它非常适合代码实现、复审、修复、验证这类既有先后关系、又存在可并行空间的任务。
+```mermaid
+flowchart TD
+    A[用户输入目标] --> B[Planner一次性生成固定Pipeline]
+    B --> C[执行Stage1: 实现功能]
+    C --> D[执行Stage2: Review]
+    D --> E[执行Stage3: Verify/Fix]
+    E --> F{全部成功?}
+    F -- 是 --> G[结束 Completed]
+    F -- 否 --> H[结束 Failed/Skipped]
+    H --> I[用户手动改Pipeline后重跑]
+```
 
-## 支持的 CLI 环境
+### 🧠 Agent 模式（多轮智能闭环）
 
-项目内置两套环境配置：
+```mermaid
+flowchart TD
+    A[用户输入目标] --> B[Round1 Planning]
+    B --> C[Round1 执行: Coder/Reviewer]
+    C --> D[Round1 评估 Evaluator]
+    D --> E{决策}
+    E -- continue --> F[Round2 Planning]
+    E -- replan --> F
+    E -- ask_human --> H[等待人工确认]
+    H --> F
+    E -- finish --> G[结束 Completed]
+    E -- abort --> X[结束 Failed]
+    F --> I[Round2 执行: Fixer/Verifier]
+    I --> J[Round2 评估]
+    J --> E
+```
 
-- `Default (Open Source)`
-  - `cursor`
-  - `codex`
-  - `claude`
-- `Internal`
-  - `agent`
-  - `codex-internal`
-  - `claude-internal`
+---
 
-应用首次启动时会自动扫描本机 CLI，并推荐合适的环境。后续也可以在 `Settings` 中切换。
+## 🎯 典型使用场景 (Use Cases)
 
-## 快速开始
+1. **自动化工作台**：把团队常用的 “实现代码 -> 代码 Review -> 修复问题 -> 跑通验证” 固化为可复用的标准 Pipeline。
+2. **长链路协作**：在同一个项目里，让 Claude 负责写文档，Cursor 负责写代码，自动化脚本负责构建，一步到位。
+3. **安全闭环**：在高危任务（如数据库迁移）中使用 Agent 模式，强制设置 `waitingHuman` 节点，由人工审查生成的变更后再继续执行。
+4. **局部重试**：当长达几十步的 Pipeline 在最后一步失败时，无需从头再来，支持**按 Stage 或单 Step 原地重跑**。
+
+---
+
+## 🚀 快速开始
 
 ### 1. 环境要求
-
-- macOS 14+
+- macOS 14.0+
 - Swift 5.9+
-- 已安装并登录至少一种 AI CLI
+- 已在终端中登录并配置好至少一种受支持的 AI CLI（如 Cursor, Claude, Codex）
 
-建议提前确认以下命令中至少部分可用：
-
+你可以通过以下命令验证环境：
 ```bash
-cursor --version
-codex --version
+cursor-agent --version
 claude --version
+codex --version
 ```
 
-如果你使用内部环境，则对应命令为：
+### 2. 编译与运行
+AgentCrew 是标准的 Swift Package 项目，你可以直接通过命令行启动，或使用 Xcode 打开。
 
+**通过命令行：**
 ```bash
-agent --version
-codex-internal --version
-claude-internal --version
-```
-
-### 2. 启动项目
-
-这是一个 Swift Package，可直接使用 SwiftPM 启动：
-
-```bash
+git clone https://github.com/YourUsername/AgentCrew.git
+cd AgentCrew
 swift run AgentCrew
 ```
+*(或者使用 `swift build` 进行构建)*
 
-如需先编译：
+**通过 Xcode：**
+双击 `Package.swift` 打开项目，选择你的 Mac 作为运行目标，点击 `Run (Cmd + R)`。
 
-```bash
-swift build
-```
+### 3. 使用指南
+1. 启动 App 后，前往 `Settings` 确认已正确检测到本机的 **CLI Profile**。
+2. 点击侧边栏底部的 `+` 选择一个本地代码仓库。
+3. 点击 **AI Pipeline Generator**，输入你的任务需求，或手动创建 Pipeline。
+4. 在 Pipeline 编辑器中检查各个 Step 的 Tool 和 Prompt（命令会根据环境自动生成，也可在 Advanced 中手写覆盖）。
+5. 在右上角选择 `Pipeline` 或 `Agent` 模式。
+6. 点击 **Run** 开始见证奇迹！📈
 
-### 3. 首次使用
+---
 
-1. 启动应用
-2. 选择 CLI Environment
-3. 新建 Pipeline，或使用 `AI Pipeline Generator`
-4. 为每个 Step 配置 `Tool`、`Prompt`、可选 `Model`
-5. 点击 `Run Pipeline` 执行
+## 🏗️ 项目架构
 
-## 典型工作流
+本项目采用 SwiftUI 编写，核心架构如下：
+- `Services/DAGScheduler.swift`: 负责解析依赖关系与波次 (Wave) 并行调度。
+- `Services/AIPlanner.swift`: 负责与大模型交互，将自然语言转化为结构化执行步骤。
+- `Services/CLIProfileManager.swift`: 负责不同环境 CLI 命令参数的自适应装配。
+- `ViewModels/AppViewModel.swift`: 全局状态管理、会话生命周期与模式回退分析。
 
-一个常见示例是：
+### 📚 相关文档
+- [Pipeline 与 Agent 深度对比](docs/compare-pipeline-agent-modes.md)
+- [支持的 CLI 命令参考](docs/cli-commands.md)
+- [CLI 找不到命令的排查指南](docs/fix-cli-command-not-found.md)
 
-1. `Codex` 实现功能
-2. `Cursor` 做代码复审
-3. `Codex` 根据复审意见修复
-4. `Claude` 做补充验证或总结
+---
 
-你也可以把无依赖的实现步骤放在同一个 `parallel` Stage 中，让多个任务同时执行。
+## 🤝 参与贡献
+欢迎提交 Issue 和 Pull Request！AgentCrew 仍处于快速演进阶段。
+如果你希望增加新的 AI CLI 支持，或者改进 DAG 调度引擎，请参考 `docs/` 目录下的设计文档。
 
-## 配置说明
-
-Step 层默认不需要手写完整命令，只需要配置：
-
-- `Tool`
-- `Model`（可选）
-- `Prompt`
-
-系统会根据当前 CLI 环境自动生成最终命令。
-
-如果某一步需要特殊行为，也可以在 `Advanced` 中填写自定义命令覆盖。此时该 Step 不再跟随全局环境切换。
-
-## 文档
-
-- `docs/cli-commands.md`：CLI 非交互命令参考
-- `docs/simplify-cli-command-settings.md`：CLI 命令配置体系简化说明
-- `docs/fix-cli-command-not-found.md`：CLI 找不到命令时的排查文档
-- `docs/step-context-passing-analysis.md`：Step 上下文传递相关分析
-
-## 依赖
-
-项目当前依赖：
-
-- [`SwiftTerm`](https://github.com/migueldeicaza/SwiftTerm)
-
-## 当前项目判断
-
-从现有代码来看，AgentCrew 目前已经具备一个完整的最小可用闭环：
-
-- 有本地可视化 Pipeline 编辑器
-- 有 AI 自动拆解任务能力
-- 有 DAG 调度和多 CLI 执行能力
-- 有运行监控、历史记录、失败重试和 Flowchart 可视化
-
-整体定位比较清晰：它更像一个“面向本地 AI CLI 的轻量工作流编排器”，而不是单一聊天工具或单一代理外壳。
+## 📄 许可证 (License)
+本项目采用 [MIT License](LICENSE) 开源，请自由地在个人或商业环境中使用。
