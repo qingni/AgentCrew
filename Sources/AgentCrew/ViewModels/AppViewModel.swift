@@ -27,6 +27,50 @@ final class AppViewModel: ObservableObject {
         }
     }
 
+    struct ModeRecommendationPipelineSummary: Sendable {
+        let recommendedAgentCount: Int
+        let recommendedPipelineCount: Int
+        let comparedPipelineCount: Int
+        let matchedPipelineCount: Int
+        let currentAgentCount: Int
+        let currentPipelineCount: Int
+
+        var totalRecommendedCount: Int {
+            recommendedAgentCount + recommendedPipelineCount
+        }
+
+        var matchRate: Double {
+            guard comparedPipelineCount > 0 else { return 0 }
+            return Double(matchedPipelineCount) / Double(comparedPipelineCount)
+        }
+    }
+
+    struct ModeRecommendationDailyPoint: Identifiable {
+        let dayStart: Date
+        let recommendedAgentCount: Int
+        let recommendedPipelineCount: Int
+
+        var id: Date { dayStart }
+    }
+
+    struct ModeRecommendationPipelineRow: Identifiable {
+        let pipelineID: UUID
+        let pipelineName: String
+        let workingDirectory: String
+        let recommendedMode: OrchestrationMode
+        let currentMode: OrchestrationMode?
+        let firstRecommendedAt: Date
+        let latestRunStatus: PipelineRunStatus?
+        let latestRunFinishedAt: Date?
+
+        var id: UUID { pipelineID }
+
+        var isMatched: Bool? {
+            guard let currentMode else { return nil }
+            return currentMode == recommendedMode
+        }
+    }
+
     private enum QueueBlockReason {
         case capacity
         case workingDirectoryLocked
@@ -272,6 +316,18 @@ final class AppViewModel: ObservableObject {
     var modeRecommendationAcceptanceRate: Double {
         guard modeRecommendationShownCount > 0 else { return 0 }
         return Double(modeRecommendationAcceptedCount) / Double(modeRecommendationShownCount)
+    }
+
+    var modeRecommendationPipelineSummary: ModeRecommendationPipelineSummary {
+        buildModeRecommendationPipelineSummary()
+    }
+
+    var modeRecommendationDailyTrendLast7Days: [ModeRecommendationDailyPoint] {
+        buildModeRecommendationDailyTrend(days: 7)
+    }
+
+    var modeRecommendationPipelineRows: [ModeRecommendationPipelineRow] {
+        buildModeRecommendationPipelineRows()
     }
 
     var modeAnalyticsDailyTrendLast7Days: [ModeAnalyticsDailyPoint] {
@@ -619,6 +675,18 @@ final class AppViewModel: ObservableObject {
             }
         }
         return suggestion
+    }
+
+    func applyInitialAgentRecommendationIfNeeded(
+        for pipelineID: UUID,
+        recommendation: ModeRecommendation
+    ) {
+        guard recommendation.recommendedMode == .agent else { return }
+        guard let pipeline = pipelines.first(where: { $0.id == pipelineID }) else { return }
+        // Only auto-apply for fresh pipelines to avoid overriding established preferences.
+        guard pipeline.runHistory.isEmpty else { return }
+        guard pipeline.preferredRunMode == .pipeline else { return }
+        setPreferredRunMode(.agent, for: pipelineID)
     }
 
     func markPreRunRecommendationShown(
@@ -3064,6 +3132,133 @@ final class AppViewModel: ObservableObject {
         guard event.type == .modeRecommendationAccepted else { return false }
         let source = event.payload["source"] ?? ""
         return source == "pre_run_recommendation" || source == "runtime_suggestion"
+    }
+
+    private func preRunRecommendedMode(from event: ModeAnalyticsEvent) -> OrchestrationMode? {
+        guard event.type == .modeRecommendationShown else { return nil }
+        guard event.payload["source"] == "pre_run" else { return nil }
+        guard let rawMode = event.payload["recommendedMode"] else { return nil }
+        return OrchestrationMode(rawValue: rawMode)
+    }
+
+    private func firstPreRunRecommendationByPipeline() -> [UUID: (mode: OrchestrationMode, timestamp: Date)] {
+        var firstByPipeline: [UUID: (mode: OrchestrationMode, timestamp: Date)] = [:]
+
+        for event in modeAnalyticsEvents {
+            guard let recommendedMode = preRunRecommendedMode(from: event) else { continue }
+            if let existing = firstByPipeline[event.pipelineID],
+               existing.timestamp <= event.timestamp {
+                continue
+            }
+            firstByPipeline[event.pipelineID] = (
+                mode: recommendedMode,
+                timestamp: event.timestamp
+            )
+        }
+
+        return firstByPipeline
+    }
+
+    private func buildModeRecommendationPipelineSummary() -> ModeRecommendationPipelineSummary {
+        let firstRecommendationByPipeline = firstPreRunRecommendationByPipeline()
+        let currentModeByPipeline = Dictionary(
+            uniqueKeysWithValues: pipelines.map { ($0.id, $0.preferredRunMode) }
+        )
+
+        var recommendedAgentCount = 0
+        var recommendedPipelineCount = 0
+        var comparedPipelineCount = 0
+        var matchedPipelineCount = 0
+        var currentAgentCount = 0
+        var currentPipelineCount = 0
+
+        for (pipelineID, recommendation) in firstRecommendationByPipeline {
+            switch recommendation.mode {
+            case .agent:
+                recommendedAgentCount += 1
+            case .pipeline:
+                recommendedPipelineCount += 1
+            }
+
+            guard let currentMode = currentModeByPipeline[pipelineID] else { continue }
+            comparedPipelineCount += 1
+            if currentMode == .agent {
+                currentAgentCount += 1
+            } else {
+                currentPipelineCount += 1
+            }
+            if currentMode == recommendation.mode {
+                matchedPipelineCount += 1
+            }
+        }
+
+        return ModeRecommendationPipelineSummary(
+            recommendedAgentCount: recommendedAgentCount,
+            recommendedPipelineCount: recommendedPipelineCount,
+            comparedPipelineCount: comparedPipelineCount,
+            matchedPipelineCount: matchedPipelineCount,
+            currentAgentCount: currentAgentCount,
+            currentPipelineCount: currentPipelineCount
+        )
+    }
+
+    private func buildModeRecommendationDailyTrend(days: Int) -> [ModeRecommendationDailyPoint] {
+        guard days > 0 else { return [] }
+
+        let calendar = Calendar.current
+        let today = calendar.startOfDay(for: Date())
+
+        var agentByDay: [Date: Int] = [:]
+        var pipelineByDay: [Date: Int] = [:]
+        for recommendation in firstPreRunRecommendationByPipeline().values {
+            let day = calendar.startOfDay(for: recommendation.timestamp)
+            switch recommendation.mode {
+            case .agent:
+                agentByDay[day, default: 0] += 1
+            case .pipeline:
+                pipelineByDay[day, default: 0] += 1
+            }
+        }
+
+        var points: [ModeRecommendationDailyPoint] = []
+        for offset in stride(from: days - 1, through: 0, by: -1) {
+            guard let day = calendar.date(byAdding: .day, value: -offset, to: today) else { continue }
+            points.append(
+                ModeRecommendationDailyPoint(
+                    dayStart: day,
+                    recommendedAgentCount: agentByDay[day, default: 0],
+                    recommendedPipelineCount: pipelineByDay[day, default: 0]
+                )
+            )
+        }
+        return points
+    }
+
+    private func buildModeRecommendationPipelineRows() -> [ModeRecommendationPipelineRow] {
+        let recommendationByPipeline = firstPreRunRecommendationByPipeline()
+        let pipelineByID = Dictionary(uniqueKeysWithValues: pipelines.map { ($0.id, $0) })
+
+        return recommendationByPipeline
+            .map { pipelineID, recommendation in
+                let pipeline = pipelineByID[pipelineID]
+                let latestRun = pipeline?.runHistory.max { lhs, rhs in
+                    let lhsDate = lhs.endedAt ?? lhs.startedAt
+                    let rhsDate = rhs.endedAt ?? rhs.startedAt
+                    return lhsDate < rhsDate
+                }
+
+                return ModeRecommendationPipelineRow(
+                    pipelineID: pipelineID,
+                    pipelineName: pipeline?.name ?? "Deleted Pipeline",
+                    workingDirectory: pipeline?.workingDirectory ?? "",
+                    recommendedMode: recommendation.mode,
+                    currentMode: pipeline?.preferredRunMode,
+                    firstRecommendedAt: recommendation.timestamp,
+                    latestRunStatus: latestRun?.status,
+                    latestRunFinishedAt: latestRun?.endedAt ?? latestRun?.startedAt
+                )
+            }
+            .sorted { $0.firstRecommendedAt > $1.firstRecommendedAt }
     }
 
     private func buildModeAnalyticsDailyTrend(days: Int) -> [ModeAnalyticsDailyPoint] {

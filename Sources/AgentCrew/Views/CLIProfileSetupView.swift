@@ -5,8 +5,6 @@ struct CLIProfileSetupView: View {
     @Environment(\.dismiss) private var dismiss
 
     @State private var detectionResults: [CLIProfileManager.DetectionResult] = []
-    @State private var recommendedProfile: CLIProfile = .default
-    @State private var selectedProfileID: String = CLIProfile.default.id
     @State private var isDetecting = true
 
     var body: some View {
@@ -15,8 +13,8 @@ struct CLIProfileSetupView: View {
             Divider()
             ScrollView {
                 VStack(alignment: .leading, spacing: 20) {
+                    modeSwitchSection
                     detectionSection
-                    profileSelectionSection
                     toolSummarySection
                 }
                 .padding(24)
@@ -27,6 +25,9 @@ struct CLIProfileSetupView: View {
         .frame(width: 460)
         .fixedSize(horizontal: false, vertical: true)
         .task { await runDetection() }
+        .onChange(of: profileManager.useInternalCommands) { _, _ in
+            Task { await runDetection() }
+        }
     }
 
     // MARK: - Header
@@ -44,7 +45,7 @@ struct CLIProfileSetupView: View {
             VStack(alignment: .leading, spacing: 2) {
                 Text("CLI Environment")
                     .font(.title2.bold())
-                Text("Choose which CLI tools to use")
+                Text("Choose a command mode for Codex and Claude")
                     .font(.callout)
                     .foregroundStyle(.secondary)
             }
@@ -54,19 +55,52 @@ struct CLIProfileSetupView: View {
         .background(.bar)
     }
 
+    // MARK: - Mode Switch
+
+    private var modeSwitchSection: some View {
+        GroupBox {
+            VStack(alignment: .leading, spacing: 10) {
+                Toggle(
+                    "Use alternate command mode for Codex and Claude",
+                    isOn: Binding(
+                        get: { profileManager.useInternalCommands },
+                        set: { enabled in
+                            withAnimation(.easeInOut(duration: 0.2)) {
+                                profileManager.setUseInternalCommands(enabled)
+                            }
+                        }
+                    )
+                )
+
+                Text(
+                    profileManager.useInternalCommands
+                        ? "Alternate mode is active. Codex and Claude use alternate command mapping."
+                        : "Standard mode is active. Codex and Claude use standard command mapping."
+                )
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+
+                Text("Cursor stays on a fixed command mode.")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            }
+            .padding(4)
+        }
+    }
+
     // MARK: - Detection
 
     private var detectionSection: some View {
         GroupBox {
             VStack(alignment: .leading, spacing: 10) {
                 HStack {
-                    Text("Detected Tools")
+                    Text("Tool Availability")
                         .font(.subheadline.bold())
                     Spacer()
                     if isDetecting {
                         ProgressView()
                             .controlSize(.small)
-                        Text("Scanning...")
+                        Text("Checking...")
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
@@ -82,8 +116,8 @@ struct CLIProfileSetupView: View {
                                 Image(systemName: result.found ? "checkmark.circle.fill" : "xmark.circle")
                                     .foregroundStyle(result.found ? .green : .secondary)
                                     .font(.caption)
-                                Text(result.executable)
-                                    .font(.system(.caption, design: .monospaced))
+                                Text(detectionDisplayName(for: result.executable))
+                                    .font(.caption)
                                 Spacer()
                             }
                             .padding(.vertical, 4)
@@ -102,96 +136,31 @@ struct CLIProfileSetupView: View {
         }
     }
 
-    // MARK: - Profile Selection
-
-    private var profileSelectionSection: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            if !isDetecting {
-                HStack(spacing: 4) {
-                    Image(systemName: "sparkles")
-                        .foregroundStyle(.blue)
-                    Text("Recommended:")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                    Text(recommendedProfile.name)
-                        .font(.caption.bold())
-                }
-            }
-
-            ForEach(CLIProfile.builtInProfiles, id: \.id) { profile in
-                profileCard(profile)
-            }
-        }
-    }
-
-    private func profileCard(_ profile: CLIProfile) -> some View {
-        let isSelected = selectedProfileID == profile.id
-        let isRecommended = profile.id == recommendedProfile.id && !isDetecting
-        return Button {
-            selectedProfileID = profile.id
-        } label: {
-            HStack(spacing: 12) {
-                Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
-                    .foregroundStyle(isSelected ? Color.blue : Color.secondary.opacity(0.3))
-                    .font(.title3)
-
-                VStack(alignment: .leading, spacing: 4) {
-                    HStack(spacing: 6) {
-                        Text(profile.name)
-                            .font(.subheadline.bold())
-                            .foregroundStyle(isSelected ? .primary : .secondary)
-                        if isRecommended {
-                            Text("Recommended")
-                                .font(.caption2.bold())
-                                .foregroundStyle(.white)
-                                .padding(.horizontal, 6)
-                                .padding(.vertical, 2)
-                                .background(.blue, in: Capsule())
-                        }
-                    }
-
-                    HStack(spacing: 12) {
-                        cliLabel(profile.cursor.executable, tool: .cursor)
-                        cliLabel(profile.codex.executable, tool: .codex)
-                        cliLabel(profile.claude.executable, tool: .claude)
-                    }
-                    .opacity(isSelected ? 1.0 : 0.5)
-                }
-                Spacer()
-            }
-            .padding(12)
-            .background(
-                RoundedRectangle(cornerRadius: 10)
-                    .fill(isSelected ? Color.blue.opacity(0.12) : Color.secondary.opacity(0.06))
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: 10)
-                    .stroke(isSelected ? Color.blue.opacity(0.5) : Color.secondary.opacity(0.2), lineWidth: isSelected ? 2 : 1)
-            )
-        }
-        .buttonStyle(.plain)
-        .focusEffectDisabled()
-    }
-
-    private func cliLabel(_ executable: String, tool: ToolType) -> some View {
-        HStack(spacing: 3) {
-            Image(systemName: tool.iconName)
-                .foregroundStyle(tool.tintColor)
-                .font(.caption2)
-            Text(executable)
-                .font(.system(.caption2, design: .monospaced))
-                .foregroundStyle(.secondary)
-        }
+    private func detectionDisplayName(for executable: String) -> String {
+        if executable == "cursor-agent" { return "Cursor" }
+        if executable.contains("codex") { return "Codex" }
+        if executable.contains("claude") { return "Claude" }
+        return executable
     }
 
     // MARK: - Tool Summary
 
     private var toolSummarySection: some View {
-        HStack(spacing: 6) {
-            Image(systemName: "info.circle")
-                .foregroundStyle(.blue)
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 6) {
+                Image(systemName: "info.circle")
+                    .foregroundStyle(.blue)
+                Text("How this works")
+                    .font(.caption.bold())
+                    .foregroundStyle(.secondary)
+            }
+
+            Text("This setting only changes Codex and Claude behavior.")
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+
             Text("You can change this later in **Settings**")
-                .font(.caption)
+                .font(.caption2)
                 .foregroundStyle(.secondary)
         }
     }
@@ -209,9 +178,7 @@ struct CLIProfileSetupView: View {
             Spacer()
 
             Button("Continue") {
-                if let profile = CLIProfile.builtInProfiles.first(where: { $0.id == selectedProfileID }) {
-                    profileManager.completeSetup(with: profile)
-                }
+                profileManager.completeSetup()
                 dismiss()
             }
             .buttonStyle(.borderedProminent)
@@ -224,11 +191,10 @@ struct CLIProfileSetupView: View {
     // MARK: - Detection Logic
 
     private func runDetection() async {
-        let (results, recommended) = await profileManager.detectEnvironment()
+        isDetecting = true
+        let results = await profileManager.detectEnvironment()
         withAnimation(.easeInOut(duration: 0.3)) {
             detectionResults = results
-            recommendedProfile = recommended
-            selectedProfileID = recommended.id
             isDetecting = false
         }
     }

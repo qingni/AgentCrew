@@ -2,7 +2,7 @@ import SwiftUI
 
 enum SidebarSection: Hashable {
     case pipelines
-    case interactive
+    case modeAnalytics
 }
 
 struct ContentView: View {
@@ -13,15 +13,16 @@ struct ContentView: View {
     @State private var showSettings = false
     @State private var editingPipeline: Pipeline?
     @State private var selectedSection: SidebarSection = .pipelines
+    @State private var splitViewVisibility: NavigationSplitViewVisibility = .all
     @State private var expandedProjectIDs: Set<String> = []
 
     var body: some View {
-        NavigationSplitView {
+        NavigationSplitView(columnVisibility: $splitViewVisibility) {
             sidebar
         } content: {
             switch selectedSection {
-            case .interactive:
-                InteractiveView()
+            case .modeAnalytics:
+                ModeAnalyticsView()
             case .pipelines:
                 if vm.pipelines.isEmpty {
                     WelcomeView(
@@ -40,11 +41,11 @@ struct ContentView: View {
                 }
             }
         } detail: {
-            if selectedSection == .interactive {
+            if selectedSection == .modeAnalytics {
                 ContentUnavailableView(
-                    "Interactive Mode",
-                    systemImage: "terminal",
-                    description: Text("The terminal session runs in the content area.")
+                    "Mode Insights",
+                    systemImage: "chart.bar.fill",
+                    description: Text("Insights dashboards are shown in the content area.")
                 )
             } else if let step = vm.selectedStep, let pipeline = vm.selectedPipeline {
                 StepDetailView(step: step, pipelineID: pipeline.id)
@@ -85,6 +86,10 @@ struct ContentView: View {
                 .transition(.opacity)
                 .animation(.easeInOut(duration: 0.2), value: vm.showFlowchart)
             }
+        }
+        .onAppear {
+            // Recover sidebar after prior column-visibility experiments.
+            splitViewVisibility = .all
         }
     }
 
@@ -133,28 +138,28 @@ struct ContentView: View {
                 }
             }
 
-            Section("Tools") {
+            Section("Insights") {
                 Button {
-                    selectedSection = .interactive
+                    selectedSection = .modeAnalytics
                     vm.selectedPipelineID = nil
                 } label: {
                     Label {
                         VStack(alignment: .leading, spacing: 2) {
-                            Text("Interactive Terminal")
-                            Text("Codex / Claude / Cursor")
+                            Text("Mode Insights")
+                            Text("Recommendation vs current mode")
                                 .font(.caption2)
                                 .foregroundStyle(.secondary)
                         }
                     } icon: {
-                        Image(systemName: "terminal")
-                            .foregroundStyle(.purple)
+                        Image(systemName: "chart.bar.fill")
+                            .foregroundStyle(.blue)
                     }
                 }
                 .buttonStyle(.plain)
                 .padding(.vertical, 2)
                 .background(
-                    selectedSection == .interactive
-                        ? RoundedRectangle(cornerRadius: 6).fill(.purple.opacity(0.12))
+                    selectedSection == .modeAnalytics
+                        ? RoundedRectangle(cornerRadius: 6).fill(.blue.opacity(0.12))
                         : nil
                 )
             }
@@ -193,13 +198,20 @@ struct ContentView: View {
                 } label: {
                     Image(systemName: "plus")
                 }
+                Button {
+                    selectedSection = .modeAnalytics
+                    vm.selectedPipelineID = nil
+                } label: {
+                    Image(systemName: "chart.bar.fill")
+                }
+                .help("Mode Insights")
                 Button(action: { showSettings = true }) {
                     Image(systemName: "gear")
                 }
             }
         }
         .safeAreaInset(edge: .bottom) {
-            if vm.pipelines.isEmpty && selectedSection != .interactive {
+            if vm.pipelines.isEmpty {
                 VStack(spacing: 8) {
                     Text("Get started by creating your first pipeline")
                         .font(.caption)
@@ -216,6 +228,8 @@ struct ContentView: View {
 
     @ViewBuilder
     private func pipelineRow(_ pipeline: Pipeline) -> some View {
+        let isRunning = vm.isPipelineExecuting(pipeline.id)
+        let isAgentRunning = vm.isAgentExecuting(pipeline.id)
         NavigationLink(value: pipeline.id) {
             HStack {
                 Image(systemName: "flowchart")
@@ -253,6 +267,13 @@ struct ContentView: View {
                         .lineLimit(1)
                 }
                 Spacer(minLength: 6)
+                if isRunning {
+                    Image(systemName: isAgentRunning ? "sparkles" : "play.circle.fill")
+                        .font(.caption)
+                        .foregroundStyle(isAgentRunning ? .purple : .green)
+                        .symbolEffect(.pulse, options: .repeating)
+                        .help(isAgentRunning ? "Agent is running" : "Pipeline is running")
+                }
             }
             .padding(.vertical, 2)
         }
@@ -723,14 +744,12 @@ private struct SettingsSheet: View {
 
     @State private var detectionResults: [CLIProfileManager.DetectionResult] = []
     @State private var isDetecting = false
-    @State private var recommendedProfile: CLIProfile?
     @State private var showPolicyEditor = false
-    @State private var analyticsStatusMessage = ""
-    @State private var analyticsStatusIsError = false
     @State private var notificationStatusMessage = ""
     @State private var notificationStatusIsError = false
     @State private var isRequestingNotificationPermission = false
     @State private var isSendingNotificationTest = false
+    @State private var copiedCommandTool: ToolType?
 
     var body: some View {
         VStack(spacing: 0) {
@@ -749,32 +768,36 @@ private struct SettingsSheet: View {
                 VStack(alignment: .leading, spacing: 16) {
                     GroupBox("CLI Environment") {
                         VStack(alignment: .leading, spacing: 12) {
-                            HStack {
-                                Text("Environment")
-                                    .font(.subheadline)
-                                Spacer()
-                                Picker("", selection: Binding(
-                                    get: { profileManager.activeProfile.id },
-                                    set: { newID in
-                                        if let profile = CLIProfile.builtInProfiles.first(where: { $0.id == newID }) {
-                                            profileManager.selectProfile(profile)
+                            Toggle(
+                                "Use alternate command mode for Codex and Claude",
+                                isOn: Binding(
+                                    get: { profileManager.useInternalCommands },
+                                    set: { enabled in
+                                        withAnimation(.easeInOut(duration: 0.2)) {
+                                            profileManager.setUseInternalCommands(enabled)
                                         }
                                     }
-                                )) {
-                                    ForEach(CLIProfile.builtInProfiles, id: \.id) { profile in
-                                        Text(profile.name).tag(profile.id)
-                                    }
-                                }
-                                .pickerStyle(.menu)
-                                .frame(maxWidth: 200)
-                            }
+                                )
+                            )
+
+                            Text(
+                                profileManager.useInternalCommands
+                                    ? "Alternate mode is active. Codex and Claude use alternate command mapping."
+                                    : "Standard mode is active. Codex and Claude use standard command mapping."
+                            )
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+
+                            Text("Cursor stays on a fixed command mode.")
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
 
                             Divider()
 
                             if isDetecting {
                                 HStack(spacing: 8) {
                                     ProgressView().controlSize(.small)
-                                    Text("Detecting CLI tools...")
+                                    Text("Checking tools...")
                                         .font(.caption)
                                         .foregroundStyle(.secondary)
                                 }
@@ -788,8 +811,8 @@ private struct SettingsSheet: View {
                                             Image(systemName: result.found ? "checkmark.circle.fill" : "xmark.circle")
                                                 .foregroundStyle(result.found ? .green : .secondary)
                                                 .font(.caption)
-                                            Text(result.executable)
-                                                .font(.system(.caption, design: .monospaced))
+                                            Text(detectionDisplayName(for: result.executable))
+                                                .font(.caption)
                                             Spacer()
                                         }
                                         .padding(.vertical, 3)
@@ -804,35 +827,11 @@ private struct SettingsSheet: View {
                                 }
                             }
 
-                            if let recommended = recommendedProfile,
-                               recommended.id != profileManager.activeProfile.id {
-                                HStack(spacing: 8) {
-                                    Image(systemName: "exclamationmark.triangle.fill")
-                                        .foregroundStyle(.orange)
-                                    VStack(alignment: .leading, spacing: 2) {
-                                        Text("Detected environment mismatch")
-                                            .font(.caption.bold())
-                                        Text("Your system has **\(recommended.name)** tools, but the current environment is set to **\(profileManager.activeProfile.name)**.")
-                                            .font(.caption2)
-                                            .foregroundStyle(.secondary)
-                                    }
-                                    Spacer()
-                                    Button("Switch to \(recommended.name)") {
-                                        withAnimation { profileManager.selectProfile(recommended) }
-                                    }
-                                    .controlSize(.small)
-                                    .buttonStyle(.borderedProminent)
-                                    .tint(.orange)
-                                }
-                                .padding(8)
-                                .background(Color.orange.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
-                            }
-
                             ForEach(ToolType.allCases) { tool in
                                 cliToolRow(tool)
                             }
 
-                            Text("Switching environment updates all pipeline steps that don't have a custom command override.")
+                            Text("Switching this mode updates all pipeline steps that don't have a custom command override.")
                                 .font(.caption2)
                                 .foregroundStyle(.secondary)
                         }
@@ -935,82 +934,6 @@ private struct SettingsSheet: View {
                         .padding(8)
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
-
-                    GroupBox("Mode Recommendation Analytics") {
-                        VStack(alignment: .leading, spacing: 10) {
-                            HStack(spacing: 8) {
-                                analyticsMetricCard(
-                                    title: "Acceptance Rate",
-                                    value: acceptanceRateText,
-                                    subtitle: "Accepted \(vm.modeRecommendationAcceptedCount) / Shown \(vm.modeRecommendationShownCount)",
-                                    tint: .green
-                                )
-                                analyticsMetricCard(
-                                    title: "Runtime Switch",
-                                    value: "\(vm.modeRuntimeSwitchCount)",
-                                    subtitle: "Switched from runtime suggestion",
-                                    tint: .purple
-                                )
-                                analyticsMetricCard(
-                                    title: "Dismissed",
-                                    value: "\(vm.modeRecommendationDismissedCount)",
-                                    subtitle: "User dismissed recommendation",
-                                    tint: .orange
-                                )
-                            }
-
-                            VStack(alignment: .leading, spacing: 6) {
-                                Text("7-Day Trend (Shown vs Accepted)")
-                                    .font(.caption2.bold())
-
-                                HStack(alignment: .bottom, spacing: 6) {
-                                    ForEach(dailyTrendPoints) { point in
-                                        dailyTrendColumn(point)
-                                    }
-                                }
-
-                                HStack(spacing: 10) {
-                                    analyticsLegendDot(color: .blue, label: "Shown")
-                                    analyticsLegendDot(color: .green, label: "Accepted")
-                                }
-                            }
-
-                            Text(analyticsSummaryText)
-                                .font(.caption2)
-                                .foregroundStyle(.secondary)
-                                .lineLimit(2)
-
-                            Text(vm.modeAnalyticsLogPath)
-                                .font(.system(.caption2, design: .monospaced))
-                                .foregroundStyle(.secondary)
-                                .lineLimit(2)
-                                .textSelection(.enabled)
-
-                            HStack(spacing: 8) {
-                                Button("Open in Finder") {
-                                    openModeAnalyticsLogInFinder()
-                                }
-                                .controlSize(.small)
-
-                                Button("Export JSONL…") {
-                                    exportModeAnalyticsLog()
-                                }
-                                .controlSize(.small)
-
-                                Button("Clear Log") {
-                                    clearModeAnalyticsLog()
-                                }
-                                .controlSize(.small)
-                            }
-
-                            if !analyticsStatusMessage.isEmpty {
-                                Text(analyticsStatusMessage)
-                                    .font(.caption2)
-                                    .foregroundStyle(analyticsStatusIsError ? .red : .secondary)
-                            }
-                        }
-                        .padding(8)
-                    }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(.horizontal, 24)
@@ -1035,23 +958,58 @@ private struct SettingsSheet: View {
         .sheet(isPresented: $showPolicyEditor) {
             PlanningPolicyEditorSheet(customPolicy: customPolicyBinding)
         }
+        .onChange(of: profileManager.useInternalCommands) { _, _ in
+            Task { await runDetection() }
+        }
     }
 
     @ViewBuilder
     private func cliToolRow(_ tool: ToolType) -> some View {
-        let config = profileManager.activeProfile.config(for: tool)
-        HStack(spacing: 6) {
+        let commandTemplate = profileManager.activeProfile.config(for: tool).commandTemplate()
+        let copied = copiedCommandTool == tool
+        HStack(alignment: .top, spacing: 8) {
             Image(systemName: tool.iconName)
                 .foregroundStyle(tool.tintColor)
                 .frame(width: 16)
             Text(tool.displayName)
                 .font(.caption.bold())
                 .frame(width: 48, alignment: .leading)
-            Text(config.executable)
+            Text(commandTemplate)
                 .font(.system(.caption, design: .monospaced))
                 .foregroundStyle(.secondary)
-            Spacer()
+                .lineLimit(2)
+                .multilineTextAlignment(.leading)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .layoutPriority(1)
+            Spacer(minLength: 8)
+            Button {
+                copyCommandTemplate(commandTemplate, for: tool)
+            } label: {
+                Label(copied ? "Copied" : "Copy", systemImage: copied ? "checkmark" : "doc.on.doc")
+                    .font(.caption2)
+            }
+            .buttonStyle(.borderless)
+            .foregroundStyle(copied ? .green : .secondary)
+            .frame(minWidth: 58, alignment: .trailing)
         }
+    }
+
+    private func copyCommandTemplate(_ commandTemplate: String, for tool: ToolType) {
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(commandTemplate, forType: .string)
+        copiedCommandTool = tool
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) {
+            if copiedCommandTool == tool {
+                copiedCommandTool = nil
+            }
+        }
+    }
+
+    private func detectionDisplayName(for executable: String) -> String {
+        if executable == "cursor-agent" { return "Cursor" }
+        if executable.contains("codex") { return "Codex" }
+        if executable.contains("claude") { return "Claude" }
+        return executable
     }
 
     private var customPolicyBinding: Binding<String> {
@@ -1107,113 +1065,11 @@ private struct SettingsSheet: View {
         vm.llmConfig.customPolicy.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
-    private var analyticsSummaryText: String {
-        let counts = vm.modeAnalyticsEventTypeCounts
-        if counts.isEmpty {
-            return "No analytics events have been recorded yet."
-        }
-        return ModeAnalyticsEventType.allCases
-            .compactMap { type in
-                guard let count = counts[type], count > 0 else { return nil }
-                return "\(type.rawValue): \(count)"
-            }
-            .joined(separator: " · ")
-    }
-
-    private var dailyTrendPoints: [AppViewModel.ModeAnalyticsDailyPoint] {
-        vm.modeAnalyticsDailyTrendLast7Days
-    }
-
-    private var maxDailyTrendValue: Int {
-        max(
-            1,
-            dailyTrendPoints.map { max($0.shownCount, $0.acceptedCount) }.max() ?? 1
-        )
-    }
-
-    private var acceptanceRateText: String {
-        percentageText(vm.modeRecommendationAcceptanceRate)
-    }
-
-    private func analyticsMetricCard(
-        title: String,
-        value: String,
-        subtitle: String,
-        tint: Color
-    ) -> some View {
-        VStack(alignment: .leading, spacing: 3) {
-            Text(title)
-                .font(.caption2)
-                .foregroundStyle(.secondary)
-            Text(value)
-                .font(.caption.bold())
-                .foregroundStyle(tint)
-            Text(subtitle)
-                .font(.system(size: 10))
-                .foregroundStyle(.secondary)
-                .lineLimit(2)
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.horizontal, 8)
-        .padding(.vertical, 6)
-        .background(tint.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
-    }
-
-    private func dailyTrendColumn(_ point: AppViewModel.ModeAnalyticsDailyPoint) -> some View {
-        VStack(spacing: 4) {
-            HStack(alignment: .bottom, spacing: 3) {
-                RoundedRectangle(cornerRadius: 2)
-                    .fill(.blue)
-                    .frame(width: 7, height: trendBarHeight(point.shownCount))
-                RoundedRectangle(cornerRadius: 2)
-                    .fill(.green)
-                    .frame(width: 7, height: trendBarHeight(point.acceptedCount))
-            }
-            .frame(height: 44, alignment: .bottom)
-
-            Text(shortDayLabel(for: point.dayStart))
-                .font(.system(size: 9, weight: .medium))
-                .foregroundStyle(.secondary)
-        }
-        .frame(maxWidth: .infinity)
-        .help(
-            "Shown \(point.shownCount), Accepted \(point.acceptedCount), Acceptance \(percentageText(point.acceptanceRate))"
-        )
-    }
-
-    private func analyticsLegendDot(color: Color, label: String) -> some View {
-        HStack(spacing: 4) {
-            Circle()
-                .fill(color)
-                .frame(width: 7, height: 7)
-            Text(label)
-                .font(.caption2)
-                .foregroundStyle(.secondary)
-        }
-    }
-
-    private func trendBarHeight(_ value: Int) -> CGFloat {
-        guard value > 0 else { return 0 }
-        let raw = CGFloat(value) / CGFloat(maxDailyTrendValue) * 42
-        return max(2, raw)
-    }
-
-    private func shortDayLabel(for date: Date) -> String {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "MM/dd"
-        return formatter.string(from: date)
-    }
-
-    private func percentageText(_ value: Double) -> String {
-        "\(Int((value * 100).rounded()))%"
-    }
-
     private func runDetection() async {
         isDetecting = true
-        let (results, recommended) = await profileManager.detectEnvironment()
+        let results = await profileManager.detectEnvironment()
         withAnimation(.easeInOut(duration: 0.3)) {
             detectionResults = results
-            recommendedProfile = recommended
             isDetecting = false
         }
     }
@@ -1238,44 +1094,5 @@ private struct SettingsSheet: View {
                 }
             }
         }
-    }
-
-    private func openModeAnalyticsLogInFinder() {
-        let logURL = vm.modeAnalyticsLogURL
-        if FileManager.default.fileExists(atPath: logURL.path) {
-            NSWorkspace.shared.activateFileViewerSelecting([logURL])
-        } else {
-            NSWorkspace.shared.activateFileViewerSelecting([logURL.deletingLastPathComponent()])
-        }
-    }
-
-    private func exportModeAnalyticsLog() {
-        let panel = NSSavePanel()
-        panel.canCreateDirectories = true
-        panel.nameFieldStringValue = defaultAnalyticsExportFileName
-        panel.title = "Export Mode Analytics Log"
-        panel.prompt = "Export"
-
-        guard panel.runModal() == .OK, let destinationURL = panel.url else { return }
-        do {
-            try vm.exportModeAnalyticsLog(to: destinationURL)
-            analyticsStatusIsError = false
-            analyticsStatusMessage = "Exported to \(destinationURL.path)"
-        } catch {
-            analyticsStatusIsError = true
-            analyticsStatusMessage = "Export failed: \(error.localizedDescription)"
-        }
-    }
-
-    private func clearModeAnalyticsLog() {
-        vm.clearModeAnalyticsLog()
-        analyticsStatusIsError = false
-        analyticsStatusMessage = "Local mode analytics log cleared."
-    }
-
-    private var defaultAnalyticsExportFileName: String {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "yyyyMMdd-HHmmss"
-        return "mode-analytics-\(formatter.string(from: Date())).jsonl"
     }
 }

@@ -279,6 +279,10 @@ struct PipelineEditorView: View {
         .padding(10)
         .background(.quaternary.opacity(0.35), in: RoundedRectangle(cornerRadius: 8))
         .task(id: recommendationTrackingKey) {
+            vm.applyInitialAgentRecommendationIfNeeded(
+                for: pipeline.id,
+                recommendation: recommendation
+            )
             vm.markPreRunRecommendationShown(
                 for: pipeline.id,
                 recommendation: recommendation

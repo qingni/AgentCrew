@@ -9,12 +9,31 @@ final class CLIProfileManager: ObservableObject {
         didSet { ProfileStore.save(activeProfile) }
     }
     @Published var hasCompletedSetup: Bool
+    @Published var useInternalCommands: Bool {
+        didSet {
+            guard oldValue != useInternalCommands else { return }
+            storedUseInternalCommands = useInternalCommands
+            let expectedProfile = CLIProfile.profile(useInternalCommands: useInternalCommands)
+            if activeProfile.id != expectedProfile.id {
+                activeProfile = expectedProfile
+            }
+        }
+    }
 
     @AppStorage("hasCompletedCLISetup") private var storedHasCompletedSetup: Bool = false
+    @AppStorage("useInternalCLICommands") private var storedUseInternalCommands: Bool = false
 
     private init() {
         self.hasCompletedSetup = UserDefaults.standard.bool(forKey: "hasCompletedCLISetup")
-        self.activeProfile = ProfileStore.load()
+        let storedToggle = UserDefaults.standard.object(forKey: "useInternalCLICommands") as? Bool
+        let initialUseInternal = storedToggle ?? false
+
+        self.useInternalCommands = initialUseInternal
+        self.activeProfile = CLIProfile.profile(useInternalCommands: initialUseInternal)
+
+        if storedToggle == nil {
+            self.storedUseInternalCommands = initialUseInternal
+        }
     }
 
     var needsFirstRunSetup: Bool {
@@ -24,11 +43,20 @@ final class CLIProfileManager: ObservableObject {
     // MARK: - Profile Selection
 
     func selectProfile(_ profile: CLIProfile) {
+        let usesInternal = profile.id == CLIProfile.internal.id
+        if useInternalCommands != usesInternal {
+            useInternalCommands = usesInternal
+            return
+        }
         activeProfile = profile
     }
 
     func completeSetup(with profile: CLIProfile) {
-        activeProfile = profile
+        selectProfile(profile)
+        completeSetup()
+    }
+
+    func completeSetup() {
         hasCompletedSetup = true
         storedHasCompletedSetup = true
     }
@@ -36,6 +64,10 @@ final class CLIProfileManager: ObservableObject {
     func skipSetup() {
         hasCompletedSetup = true
         storedHasCompletedSetup = true
+    }
+
+    func setUseInternalCommands(_ enabled: Bool) {
+        useInternalCommands = enabled
     }
 
     // MARK: - Auto-detect
@@ -46,22 +78,16 @@ final class CLIProfileManager: ObservableObject {
         let path: String?
     }
 
-    func detectEnvironment() async -> (results: [DetectionResult], recommended: CLIProfile) {
+    func detectEnvironment() async -> [DetectionResult] {
         let cli = CLIRunner()
         var results: [DetectionResult] = []
-        var foundInternal = false
 
-        for (executable, profileID) in CLIProfile.detectableExecutables {
+        for executable in CLIProfile.detectableExecutables(useInternalCommands: useInternalCommands) {
             let path = await Self.resolveExecutable(executable, cli: cli)
             let found = path != nil
             results.append(DetectionResult(executable: executable, found: found, path: path))
-            if found && profileID == "internal" {
-                foundInternal = true
-            }
         }
-
-        let recommended: CLIProfile = foundInternal ? .internal : .default
-        return (results, recommended)
+        return results
     }
 
     private nonisolated static func resolveExecutable(_ executable: String, cli: CLIRunner) async -> String? {

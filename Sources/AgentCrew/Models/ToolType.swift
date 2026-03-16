@@ -37,12 +37,6 @@ enum ToolType: String, Codable, CaseIterable, Identifiable, Sendable {
         }
     }
 
-    var supportsInteractive: Bool { true }
-
-    func interactiveCommand(profile: CLIProfile) -> String {
-        profile.config(for: self).interactiveExecutable ?? profile.config(for: self).executable
-    }
-
     func defaultCommandTemplate(model: String? = nil, profile: CLIProfile) -> String {
         profile.config(for: self).commandTemplate(model: model)
     }

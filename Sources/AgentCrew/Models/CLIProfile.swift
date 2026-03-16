@@ -27,7 +27,6 @@ struct ToolCLIConfig: Codable, Sendable, Equatable {
     var modelFlag: String
     var promptMode: PromptMode
     var defaultModel: String?
-    var interactiveExecutable: String?
 
     func buildArguments(prompt: String, model: String?, workingDirectory: String?) -> [String] {
         var args = resolvedBaseArgs(workingDirectory: workingDirectory)
@@ -98,31 +97,31 @@ struct CLIProfile: Codable, Sendable, Equatable, Identifiable {
     }
 
     var allExecutables: Set<String> {
-        var result: Set<String> = [
+        Set([
             cursor.executable,
             codex.executable,
             claude.executable,
             planner.executable,
-        ]
-        for exec in [cursor.interactiveExecutable, codex.interactiveExecutable, claude.interactiveExecutable] {
-            if let exec { result.insert(exec) }
-        }
-        return result
+        ])
     }
 
     /// Executables to check during auto-detection.
-    static let detectableExecutables: [(executable: String, profileID: String)] = [
-        ("codex-internal", "internal"),
-        ("claude-internal", "internal"),
-        ("cursor-agent", "default"),
-        ("codex", "default"),
-        ("claude", "default"),
-    ]
+    /// Cursor is always `cursor-agent`; Codex/Claude switch by mode.
+    static func detectableExecutables(useInternalCommands: Bool) -> [String] {
+        if useInternalCommands {
+            return ["cursor-agent", "codex-internal", "claude-internal"]
+        }
+        return ["cursor-agent", "codex", "claude"]
+    }
 }
 
 // MARK: - Built-in Presets
 
 extension CLIProfile {
+    static func profile(useInternalCommands: Bool) -> CLIProfile {
+        useInternalCommands ? .internal : .default
+    }
+
     static func builtInProfile(id: String) -> CLIProfile? {
         builtInProfiles.first(where: { $0.id == id })
     }
@@ -136,8 +135,7 @@ extension CLIProfile {
             promptFlag: "-p",
             modelFlag: "--model",
             promptMode: .inline,
-            defaultModel: "opus-4.6",
-            interactiveExecutable: "cursor-agent"
+            defaultModel: "opus-4.6"
         ),
         codex: ToolCLIConfig(
             executable: "codex",
@@ -145,8 +143,7 @@ extension CLIProfile {
             promptFlag: nil,
             modelFlag: "--model",
             promptMode: .argument,
-            defaultModel: nil,
-            interactiveExecutable: "codex"
+            defaultModel: nil
         ),
         claude: ToolCLIConfig(
             executable: "claude",
@@ -154,8 +151,7 @@ extension CLIProfile {
             promptFlag: "-p",
             modelFlag: "--model",
             promptMode: .inline,
-            defaultModel: nil,
-            interactiveExecutable: "claude"
+            defaultModel: nil
         ),
         planner: ToolCLIConfig(
             executable: "cursor-agent",
@@ -176,8 +172,7 @@ extension CLIProfile {
             promptFlag: "-p",
             modelFlag: "--model",
             promptMode: .inline,
-            defaultModel: "opus-4.6",
-            interactiveExecutable: "cursor-agent"
+            defaultModel: "opus-4.6"
         ),
         codex: ToolCLIConfig(
             executable: "codex-internal",
@@ -185,8 +180,7 @@ extension CLIProfile {
             promptFlag: nil,
             modelFlag: "--model",
             promptMode: .argument,
-            defaultModel: nil,
-            interactiveExecutable: "codex-internal"
+            defaultModel: nil
         ),
         claude: ToolCLIConfig(
             executable: "claude-internal",
@@ -194,8 +188,7 @@ extension CLIProfile {
             promptFlag: "-p",
             modelFlag: "--model",
             promptMode: .inline,
-            defaultModel: nil,
-            interactiveExecutable: "claude-internal"
+            defaultModel: nil
         ),
         planner: ToolCLIConfig(
             executable: "cursor-agent",

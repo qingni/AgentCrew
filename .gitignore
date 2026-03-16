@@ -45,3 +45,6 @@ fastlane/test_output
 # Sensitive files
 .env
 .env.*
+
+# Local docs
+docs/
