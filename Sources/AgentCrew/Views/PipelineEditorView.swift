@@ -237,6 +237,7 @@ struct PipelineEditorView: View {
                         Text(mode.title).tag(mode)
                     }
                 }
+                .labelsHidden()
                 .pickerStyle(.segmented)
                 .frame(width: 220)
                 .disabled(!canSwitchRunMode)

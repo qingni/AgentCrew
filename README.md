@@ -1,9 +1,9 @@
 <div align="center">
   <img src="Sources/AgentCrew/Assets.xcassets/AppIcon.appiconset/icon-256.png" alt="AgentCrew Logo" width="128" />
   <h1>AgentCrew</h1>
-  <p><b>一个面向 macOS 的本地 AI CLI 编排工作台（Orchestration Workbench）</b></p>
+  <p><b>一个面向 macOS 的万物编排工作台（Universal CLI Orchestration Workbench）</b></p>
   
-  <p>将 <code>Codex</code>、<code>Claude</code>、<code>Cursor-Agent</code> 等多种 AI 工具无缝组织成可视化工作流，在同一个项目中完成<b>实现、审查、修复、验证与人工重试</b>的完整闭环。</p>
+  <p>不仅能将 <code>Codex</code>、<code>Claude</code>、<code>Cursor-Agent</code> 等多种 AI 工具无缝组织成可视化工作流，还能<b>混合编排任意传统 CLI 命令（如 git、npm、docker、ffmpeg 等）</b>，在本地完成<b>研发、测试、部署与自动化运维</b>的完整闭环。</p>
 
   <p>
     <a href="https://developer.apple.com/macos/"><img src="https://img.shields.io/badge/macOS-14.0+-000000?style=for-the-badge&logo=apple&logoColor=white" alt="macOS 14.0+"></a>
@@ -18,6 +18,12 @@
 
 AgentCrew 并非要替代某一个具体的 AI 聊天工具，而是提供一个统一的 **Orchestration Layer**，让多种 AI CLI 能以更稳定、可复用、可观察的方式协作。
 
+### 💻 极致的 macOS 原生体验
+- 基于 SwiftUI 构建，运行轻量、流畅。
+- 可视化 Flowchart、全链路执行监控、本地系统通知。
+
+<img src="./Images/auto-planner.png" alt="AgentCrew 主界面运行状态" width="800" />
+
 ### 🔄 独创双引擎驱动：Pipeline 与 Agent 模式并存
 同一任务可自由在两种模式间切换，兼顾**执行效率**与**智能闭环**：
 - **⚡️ Pipeline 模式**：基于静态 DAG 工作流，执行路径极短。适合目标明确、步骤固定、追求速度与成本控制的标准化任务。
@@ -30,26 +36,36 @@ AgentCrew 并非要替代某一个具体的 AI 聊天工具，而是提供一个
 只需输入一句话自然语言（如：“给项目新增 JWT 用户认证与单测”），系统会自动为你拆解出 `Implement -> Review -> Fix -> Verify` 的结构化步骤，并自动分配合适的底层 AI 工具。
 
 ### 🛠️ 多模型 & 多 CLI 混合编排
-- 深度兼容 `Cursor/cursor-agent`、`Claude`、`Codex`。
-- 支持混合编排：例如用 Cursor 编写代码，用 Claude 进行深度 Review，再用 Codex 运行验证脚本。
+- **深度兼容 AI 工具**：原生支持 `Cursor/cursor-agent`、`Claude`、`Codex` 等大模型 CLI。
 - **极简 CLI 配置**：提供一键开关，轻松在开源版与内部特供版 CLI 命令间无缝切换，内置环境探针自动完成路径解析。
+
+### 🔌 万物编排：原生支持任意传统 CLI
+打破“仅限 AI 工具”的局限，AgentCrew 底层拥有强大的通用执行器，通过以下架构机制实现万物编排：
+- **无缝接入现有工具链**：完美支持 `git`、`npm`、`python`、`docker`、`ffmpeg` 等任意能在 macOS 终端运行的命令。
+- **与大模型互通**：支持将提示词或前序 AI 节点的输出以占位符（`{{prompt}}`）或标准输入（stdin）的形式安全传导给 Shell 脚本。
+- **无限混合编排**：例如用 Cursor 编写代码，跑 `npm run test` 验证，失败时由 Agent 自动抓取报错让 Claude 分析并生成 Patch，最后由自定义 Shell 脚本完成部署。
 
 ### 📊 模式洞察与智能推荐 (Mode Insights & Recommendation)
 - **智能模式推荐**：在任务创建前，根据任务复杂度、风险等级、多工具协作需求等维度进行评分，自动为你推荐最合适的执行模式（Agent 或 Pipeline），并在执行中提供动态切换建议。
 - **Mode Insights 分析大盘**：内置运行数据分析看板，可视化展示推荐采纳率、模式分布与 7 日趋势。支持导出详细日志，辅助团队复盘与引擎调优。
 
-### 💻 极致的 macOS 原生体验
-- 基于 SwiftUI 构建，运行轻量、流畅。
-- 可视化 Flowchart、全链路执行监控、本地系统通知。
+<img src="./Images/mode-insights.png" alt="模式洞察与分析大盘" width="800" />
 
 ---
 
 ## 🎯 典型使用场景 (Use Cases)
 
+打破“仅限 AI 工具”的局限，AgentCrew 也是一个带可视化界面、支持大模型动态规划、且具备状态管理的加强版 `Make` 或本地化 `Jenkins`。
+
+### 🤖 AI 研发提效闭环
 1. **自动化工作台**：把团队常用的 “实现代码 -> 代码 Review -> 修复问题 -> 跑通验证” 固化为可复用的标准 Pipeline。
-2. **长链路协作**：在同一个项目里，让 Claude 负责写文档，Cursor 负责写代码，自动化脚本负责构建，一步到位。
-3. **安全闭环**：在高危任务（如数据库迁移）中使用 Agent 模式，强制设置 `waitingHuman` 节点，由人工审查生成的变更后再继续执行。
-4. **局部重试**：当长达几十步的 Pipeline 在最后一步失败时，无需从头再来，支持**按 Stage 或单 Step 原地重跑**。
+2. **长链路协作**：在同一个项目中，让 Claude 负责写文档，Cursor 负责写代码，自动化脚本负责构建，一步到位。
+3. **局部重试**：当长达几十步的 Pipeline 在最后一步失败时，无需从头再来，支持**按 Stage 或单 Step 原地重跑**。
+
+### ⚡️ 通用任务与万物编排 (自行探索)
+4. **轻量级本地 CI/CD (DevOps)**：利用波次 (Wave) 并发执行 `lint` 和 `test`，成功后串行执行 `build`，最后调用 AI 自动生成 `CHANGELOG`，并在推送到云端前挂起等待人工（`waitingHuman`）审批。
+5. **多媒体/数据批处理**：利用 DAG 的最大化并发性能，同时启动数十个进程（如 `ffmpeg`）处理耗时任务，或并发抓取数据后交由大模型清洗、分析并自动发送邮件周报。
+6. **智能运维与故障自愈**：并发巡检本地或远程服务，当指标异常导致 Step 失败时，触发 Agent 机制。自动将报错丢给 AI 生成诊断报告及修复命令（Patch Step），人工审批通过后执行恢复。
 
 ---
 
@@ -276,6 +292,29 @@ flowchart TB
 - `Services/AIPlanner.swift`: 负责与大模型交互，将自然语言转化为结构化执行步骤。
 - `Services/CLIProfileManager.swift`: 负责不同环境 CLI 命令参数的自适应装配。
 - `ViewModels/AppViewModel.swift`: 全局状态管理、会话生命周期与模式回退分析。
+
+### 🔌 万物皆可编排：支持任意传统 CLI 的底层架构揭秘
+
+1. **触发机制：动态路由**
+   在 `DAGScheduler` 中，系统会根据节点是否配置了自定义命令进行动态路由，跳过 AI Runner，直接交给 `CommandRunner` 执行：
+   ```swift
+   if step.hasCustomCommand {
+       return try await CommandRunner().execute(...)
+   }
+   // 否则才走常规的 Claude / Cursor 等 AI 工具
+   ```
+2. **执行机制：纯正的 Zsh 子进程**
+   `CommandRunner` 底层使用 `zsh -lc` 唤起子进程执行命令，保留原汁原味的环境变量（加载 `.zprofile` / `.zshrc`）。并且内置智能路径解析，执行前通过 `command -v` 寻找真实绝对路径，极大避免 "command not found" 报错：
+   ```swift
+   let result = try await cli.run(
+       command: "zsh",
+       arguments: ["-lc", resolution.commandLine],
+       workingDirectory: workingDirectory,
+       stdinData: stdinData
+   )
+   ```
+3. **数据传导：安全转义与 Stdin**
+   系统支持 `{{prompt}}` 占位符内联替换，自动对其进行安全的 Shell 转义（`shellQuote`）；若命令中没有写占位符，也会将提示词和前序输出作为标准输入流 (`stdin`) 直接喂给该命令。
 
 ---
 

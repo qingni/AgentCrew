@@ -154,14 +154,18 @@ struct ContentView: View {
                         Image(systemName: "chart.bar.fill")
                             .foregroundStyle(.blue)
                     }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.vertical, 4)
+                    .padding(.horizontal, 8)
+                    .background(
+                        selectedSection == .modeAnalytics
+                            ? RoundedRectangle(cornerRadius: 8).fill(.blue.opacity(0.12))
+                            : nil
+                    )
+                    .padding(.horizontal, -8)
+                    .contentShape(RoundedRectangle(cornerRadius: 8))
                 }
                 .buttonStyle(.plain)
-                .padding(.vertical, 2)
-                .background(
-                    selectedSection == .modeAnalytics
-                        ? RoundedRectangle(cornerRadius: 6).fill(.blue.opacity(0.12))
-                        : nil
-                )
             }
         }
         .onChange(of: vm.selectedPipelineID) { _, newValue in
