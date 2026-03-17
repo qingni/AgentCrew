@@ -8,7 +8,7 @@
   <p>
     <a href="https://developer.apple.com/macos/"><img src="https://img.shields.io/badge/macOS-14.0+-000000?style=for-the-badge&logo=apple&logoColor=white" alt="macOS 14.0+"></a>
     <a href="https://swift.org"><img src="https://img.shields.io/badge/Swift-5.9+-F05138?style=for-the-badge&logo=swift&logoColor=white" alt="Swift 5.9+"></a>
-    <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-blue.svg?style=for-the-badge" alt="License"></a>
+    <a href="LICENSE"><img src="https://img.shields.io/badge/License-Apache_2.0-blue.svg?style=for-the-badge" alt="License"></a>
   </p>
 </div>
 
@@ -323,7 +323,7 @@ flowchart TB
 如果你希望增加新的 AI CLI 支持，或者改进 DAG 调度引擎，欢迎直接阅读源码或发起 Issue 与我们讨论。
 
 ## 📄 许可证 (License)
-本项目采用 [MIT License](LICENSE) 开源，请自由地在个人或商业环境中使用。
+本项目采用 [Apache License 2.0](LICENSE) 开源。
 
 
 
