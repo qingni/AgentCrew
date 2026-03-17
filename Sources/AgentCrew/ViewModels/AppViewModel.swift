@@ -62,6 +62,7 @@ final class AppViewModel: ObservableObject {
         let firstRecommendedAt: Date
         let latestRunStatus: PipelineRunStatus?
         let latestRunFinishedAt: Date?
+        let totalRunDuration: TimeInterval?
 
         var id: UUID { pipelineID }
 
@@ -3246,6 +3247,17 @@ final class AppViewModel: ObservableObject {
                     let rhsDate = rhs.endedAt ?? rhs.startedAt
                     return lhsDate < rhsDate
                 }
+                let totalRunDuration: TimeInterval? = {
+                    guard let pipeline else { return nil }
+                    guard !pipeline.runHistory.isEmpty else { return nil }
+
+                    let now = Date()
+                    return pipeline.runHistory.reduce(0) { partial, run in
+                        let endTime = run.endedAt ?? (run.status == .running ? now : nil)
+                        guard let endTime else { return partial }
+                        return partial + max(0, endTime.timeIntervalSince(run.startedAt))
+                    }
+                }()
 
                 return ModeRecommendationPipelineRow(
                     pipelineID: pipelineID,
@@ -3255,7 +3267,8 @@ final class AppViewModel: ObservableObject {
                     currentMode: pipeline?.preferredRunMode,
                     firstRecommendedAt: recommendation.timestamp,
                     latestRunStatus: latestRun?.status,
-                    latestRunFinishedAt: latestRun?.endedAt ?? latestRun?.startedAt
+                    latestRunFinishedAt: latestRun?.endedAt ?? latestRun?.startedAt,
+                    totalRunDuration: totalRunDuration
                 )
             }
             .sorted { $0.firstRecommendedAt > $1.firstRecommendedAt }

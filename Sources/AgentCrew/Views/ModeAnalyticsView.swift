@@ -9,6 +9,7 @@ struct ModeAnalyticsView: View {
     private let currentColumnWidth: CGFloat = 90
     private let matchColumnWidth: CGFloat = 80
     private let outcomeColumnWidth: CGFloat = 150
+    private let durationColumnWidth: CGFloat = 110
     private let comparisonRowVerticalPadding: CGFloat = 8
 
     var body: some View {
@@ -181,6 +182,10 @@ struct ModeAnalyticsView: View {
                 .font(.caption.bold())
                 .foregroundStyle(.secondary)
                 .frame(width: outcomeColumnWidth, alignment: .leading)
+            Text("Total Duration")
+                .font(.caption.bold())
+                .foregroundStyle(.secondary)
+                .frame(width: durationColumnWidth, alignment: .leading)
         }
         .padding(.vertical, 4)
     }
@@ -218,6 +223,11 @@ struct ModeAnalyticsView: View {
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .frame(width: outcomeColumnWidth, alignment: .leading)
+
+            Text(totalDurationText(row.totalRunDuration))
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .frame(width: durationColumnWidth, alignment: .leading)
         }
         .padding(.horizontal, 2)
         .padding(.vertical, comparisonRowVerticalPadding)
@@ -275,6 +285,18 @@ struct ModeAnalyticsView: View {
         }
         guard let finishedAt else { return base }
         return "\(base) · \(shortDateTime(finishedAt))"
+    }
+
+    private func totalDurationText(_ duration: TimeInterval?) -> String {
+        guard let duration else { return "No run" }
+        let normalized = max(0, duration)
+        guard normalized > 0 else { return "0s" }
+
+        let formatter = DateComponentsFormatter()
+        formatter.unitsStyle = .abbreviated
+        formatter.allowedUnits = normalized >= 3600 ? [.hour, .minute, .second] : [.minute, .second]
+        formatter.zeroFormattingBehavior = [.dropLeading]
+        return formatter.string(from: normalized) ?? "\(Int(normalized.rounded()))s"
     }
 
     private func shortDateTime(_ date: Date) -> String {
