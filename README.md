@@ -10,6 +10,10 @@
     <a href="https://swift.org"><img src="https://img.shields.io/badge/Swift-5.9+-F05138?style=for-the-badge&logo=swift&logoColor=white" alt="Swift 5.9+"></a>
     <a href="LICENSE"><img src="https://img.shields.io/badge/License-Apache_2.0-blue.svg?style=for-the-badge" alt="License"></a>
   </p>
+
+  <p>
+    <b>简体中文</b> | <a href="README_EN.md">English</a>
+  </p>
 </div>
 
 ---
