@@ -1,6 +1,7 @@
 import SwiftUI
 
 enum SidebarSection: Hashable {
+    case home
     case pipelines
     case modeAnalytics
 }
@@ -21,6 +22,12 @@ struct ContentView: View {
             sidebar
         } content: {
             switch selectedSection {
+            case .home:
+                WelcomeView(
+                    onNewPipeline: { showNewPipeline = true },
+                    onAIGenerate: { showAutoPlanner = true },
+                    onLoadDemo: { showDemoProjectPicker = true }
+                )
             case .modeAnalytics:
                 ModeAnalyticsView()
             case .pipelines:
@@ -41,7 +48,13 @@ struct ContentView: View {
                 }
             }
         } detail: {
-            if selectedSection == .modeAnalytics {
+            if selectedSection == .home {
+                ContentUnavailableView(
+                    "Home",
+                    systemImage: "house",
+                    description: Text("Use the welcome page to create a pipeline, generate one with AI, or load a demo.")
+                )
+            } else if selectedSection == .modeAnalytics {
                 ContentUnavailableView(
                     "Mode Insights",
                     systemImage: "chart.bar.fill",
@@ -99,7 +112,9 @@ struct ContentView: View {
         List(selection: $vm.selectedPipelineID) {
             Section("AI") {
                 Button {
-                    showAutoPlanner = true
+                    selectedSection = .home
+                    vm.selectedPipelineID = nil
+                    vm.selectedStepID = nil
                 } label: {
                     HStack(spacing: 8) {
                         Image(systemName: "sparkles.rectangle.stack.fill")
@@ -118,7 +133,7 @@ struct ContentView: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .background(
                         RoundedRectangle(cornerRadius: 8)
-                            .fill(.purple.opacity(0.10))
+                            .fill(.purple.opacity(selectedSection == .home ? 0.18 : 0.10))
                     )
                     .contentShape(RoundedRectangle(cornerRadius: 8))
                 }
