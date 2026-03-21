@@ -11,9 +11,9 @@ enum PromptMode: String, Codable, Sendable, CaseIterable, Identifiable {
 
     var displayName: String {
         switch self {
-        case .inline:   "Inline ({{prompt}})"
-        case .stdin:    "Stdin"
-        case .argument: "Positional Argument"
+        case .inline:   L10n.text("cli.promptMode.inline", fallback: "Inline ({{prompt}})")
+        case .stdin:    L10n.text("cli.promptMode.stdin", fallback: "Stdin")
+        case .argument: L10n.text("cli.promptMode.argument", fallback: "Positional Argument")
         }
     }
 }
@@ -128,7 +128,7 @@ extension CLIProfile {
 
     static let `default` = CLIProfile(
         id: "default",
-        name: "Default (Open Source)",
+        name: L10n.text("cli.profile.default", fallback: "Default (Open Source)"),
         cursor: ToolCLIConfig(
             executable: "cursor-agent",
             baseArgs: ["--trust"],
@@ -165,7 +165,7 @@ extension CLIProfile {
 
     static let `internal` = CLIProfile(
         id: "internal",
-        name: "Internal",
+        name: L10n.text("cli.profile.internal", fallback: "Internal"),
         cursor: ToolCLIConfig(
             executable: "cursor-agent",
             baseArgs: ["--trust"],

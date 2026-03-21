@@ -14,38 +14,38 @@ struct ModeAnalyticsView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
-            GroupBox("Mode Insights") {
+            GroupBox(L10n.text("insights.modeInsights", fallback: "Mode Insights")) {
                 VStack(alignment: .leading, spacing: 10) {
                     HStack(spacing: 8) {
                         analyticsMetricCard(
-                            title: "Recommended Agent",
+                            title: L10n.text("insights.recommendedAgent", fallback: "Recommended Agent"),
                             value: "\(recommendationPipelineSummary.recommendedAgentCount)",
-                            subtitle: "Unique pipelines (first pre-run recommendation)",
+                            subtitle: L10n.text("insights.uniquePipelinesFirstRecommendation", fallback: "Unique pipelines (first pre-run recommendation)"),
                             tint: .purple
                         )
                         analyticsMetricCard(
-                            title: "Recommended Pipeline",
+                            title: L10n.text("insights.recommendedPipeline", fallback: "Recommended Pipeline"),
                             value: "\(recommendationPipelineSummary.recommendedPipelineCount)",
-                            subtitle: "Unique pipelines (first pre-run recommendation)",
+                            subtitle: L10n.text("insights.uniquePipelinesFirstRecommendation", fallback: "Unique pipelines (first pre-run recommendation)"),
                             tint: .blue
                         )
                         analyticsMetricCard(
-                            title: "Mode Match",
+                            title: L10n.text("insights.modeMatch", fallback: "Mode Match"),
                             value: recommendationMatchRateText,
-                            subtitle: "Current mode matches recommendation \(recommendationPipelineSummary.matchedPipelineCount) / \(recommendationPipelineSummary.comparedPipelineCount)",
+                            subtitle: "\(L10n.text("insights.currentModeMatchesRecommendation", fallback: "Current mode matches recommendation")) \(recommendationPipelineSummary.matchedPipelineCount) / \(recommendationPipelineSummary.comparedPipelineCount)",
                             tint: .green
                         )
                     }
 
                     Text(
-                        "Current mode split: Agent \(recommendationPipelineSummary.currentAgentCount) / Pipeline \(recommendationPipelineSummary.currentPipelineCount) · Runtime switch \(vm.modeRuntimeSwitchCount) · Dismissed \(vm.modeRecommendationDismissedCount)"
+                        "\(L10n.text("insights.currentModeSplitAgent", fallback: "Current mode split: Agent")) \(recommendationPipelineSummary.currentAgentCount) / \(L10n.text("mode.pipeline", fallback: "Pipeline")) \(recommendationPipelineSummary.currentPipelineCount) · \(L10n.text("insights.runtimeSwitch", fallback: "Runtime switch")) \(vm.modeRuntimeSwitchCount) · \(L10n.text("insights.dismissed", fallback: "Dismissed")) \(vm.modeRecommendationDismissedCount)"
                     )
                     .font(.caption2)
                     .foregroundStyle(.secondary)
                     .lineLimit(2)
 
                     VStack(alignment: .leading, spacing: 6) {
-                        Text("7-Day Trend (New Pipelines by Recommendation)")
+                        Text(L10n.text("insights.trend7Days", fallback: "7-Day Trend (New Pipelines by Recommendation)"))
                             .font(.caption2.bold())
 
                         HStack(alignment: .bottom, spacing: 6) {
@@ -55,8 +55,8 @@ struct ModeAnalyticsView: View {
                         }
 
                         HStack(spacing: 10) {
-                            analyticsLegendDot(color: .purple, label: "Recommended Agent")
-                            analyticsLegendDot(color: .blue, label: "Recommended Pipeline")
+                            analyticsLegendDot(color: .purple, label: L10n.text("insights.recommendedAgent", fallback: "Recommended Agent"))
+                            analyticsLegendDot(color: .blue, label: L10n.text("insights.recommendedPipeline", fallback: "Recommended Pipeline"))
                         }
                     }
 
@@ -72,17 +72,17 @@ struct ModeAnalyticsView: View {
                         .textSelection(.enabled)
 
                     HStack(spacing: 8) {
-                        Button("Open in Finder") {
+                        Button(L10n.text("common.openInFinder", fallback: "Open in Finder")) {
                             openModeAnalyticsLogInFinder()
                         }
                         .controlSize(.small)
 
-                        Button("Export JSONL…") {
+                        Button(L10n.text("common.exportJsonl", fallback: "Export JSONL…")) {
                             exportModeAnalyticsLog()
                         }
                         .controlSize(.small)
 
-                        Button("Clear Log") {
+                        Button(L10n.text("common.clearLog", fallback: "Clear Log")) {
                             clearModeAnalyticsLog()
                         }
                         .controlSize(.small)
@@ -97,10 +97,10 @@ struct ModeAnalyticsView: View {
                 .padding(8)
             }
 
-            GroupBox("Pipeline Comparison") {
+            GroupBox(L10n.text("insights.pipelineComparison", fallback: "Pipeline Comparison")) {
                 VStack(alignment: .leading, spacing: 8) {
                     if pipelineRows.isEmpty {
-                        Text("No pre-run recommendation has been recorded yet.")
+                        Text(L10n.text("insights.noPreRunRecommendation", fallback: "No pre-run recommendation has been recorded yet."))
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     } else {
@@ -126,7 +126,7 @@ struct ModeAnalyticsView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .padding(.horizontal, 20)
         .padding(.vertical, 16)
-        .navigationTitle("Mode Insights")
+        .navigationTitle(L10n.text("insights.modeInsights", fallback: "Mode Insights"))
     }
 
     private var recommendationPipelineSummary: AppViewModel.ModeRecommendationPipelineSummary {
@@ -143,9 +143,9 @@ struct ModeAnalyticsView: View {
 
     private var analyticsSummaryText: String {
         if recommendationPipelineSummary.totalRecommendedCount == 0 {
-            return "No pre-run recommendation has been recorded yet."
+            return L10n.text("insights.noPreRunRecommendation", fallback: "No pre-run recommendation has been recorded yet.")
         }
-        return "Unique pipelines \(recommendationPipelineSummary.totalRecommendedCount) · Recommended Agent \(recommendationPipelineSummary.recommendedAgentCount) / Pipeline \(recommendationPipelineSummary.recommendedPipelineCount) · Current mode match \(recommendationPipelineSummary.matchedPipelineCount) / \(recommendationPipelineSummary.comparedPipelineCount)"
+        return "\(L10n.text("insights.uniquePipelines", fallback: "Unique pipelines")) \(recommendationPipelineSummary.totalRecommendedCount) · \(L10n.text("insights.recommendedAgent", fallback: "Recommended Agent")) \(recommendationPipelineSummary.recommendedAgentCount) / \(L10n.text("mode.pipeline", fallback: "Pipeline")) \(recommendationPipelineSummary.recommendedPipelineCount) · \(L10n.text("insights.currentModeMatch", fallback: "Current mode match")) \(recommendationPipelineSummary.matchedPipelineCount) / \(recommendationPipelineSummary.comparedPipelineCount)"
     }
 
     private var dailyTrendPoints: [AppViewModel.ModeRecommendationDailyPoint] {
@@ -162,27 +162,27 @@ struct ModeAnalyticsView: View {
     @ViewBuilder
     private func pipelineComparisonHeader() -> some View {
         HStack(alignment: .center, spacing: 10) {
-            Text("Pipeline")
+            Text(L10n.text("common.pipeline", fallback: "Pipeline"))
                 .font(.caption.bold())
                 .foregroundStyle(.secondary)
                 .frame(maxWidth: .infinity, alignment: .leading)
-            Text("Recommended")
+            Text(L10n.text("common.recommended", fallback: "Recommended"))
                 .font(.caption.bold())
                 .foregroundStyle(.secondary)
                 .frame(width: recommendedColumnWidth, alignment: .leading)
-            Text("Current")
+            Text(L10n.text("common.current", fallback: "Current"))
                 .font(.caption.bold())
                 .foregroundStyle(.secondary)
                 .frame(width: currentColumnWidth, alignment: .leading)
-            Text("Match")
+            Text(L10n.text("common.match", fallback: "Match"))
                 .font(.caption.bold())
                 .foregroundStyle(.secondary)
                 .frame(width: matchColumnWidth, alignment: .leading)
-            Text("Latest Outcome")
+            Text(L10n.text("insights.latestOutcome", fallback: "Latest Outcome"))
                 .font(.caption.bold())
                 .foregroundStyle(.secondary)
                 .frame(width: outcomeColumnWidth, alignment: .leading)
-            Text("Total Duration")
+            Text(L10n.text("insights.totalDuration", fallback: "Total Duration"))
                 .font(.caption.bold())
                 .foregroundStyle(.secondary)
                 .frame(width: durationColumnWidth, alignment: .leading)
@@ -204,7 +204,7 @@ struct ModeAnalyticsView: View {
                         .lineLimit(1)
                         .truncationMode(.middle)
                 }
-                Text("First recommendation · \(shortDateTime(row.firstRecommendedAt))")
+                Text("\(L10n.text("insights.firstRecommendation", fallback: "First recommendation")) · \(shortDateTime(row.firstRecommendedAt))")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }

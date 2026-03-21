@@ -41,24 +41,24 @@ struct ContentView: View {
                     PipelineEditorView(pipeline: pipeline)
                 } else {
                     ContentUnavailableView(
-                        "Select a Pipeline",
+                        L10n.text("content.selectPipeline", fallback: "Select a Pipeline"),
                         systemImage: "sidebar.left",
-                        description: Text("Choose a pipeline from the sidebar to view and edit it.")
+                        description: Text(L10n.text("content.selectPipelineDescription", fallback: "Choose a pipeline from the sidebar to view and edit it."))
                     )
                 }
             }
         } detail: {
             if selectedSection == .home {
                 ContentUnavailableView(
-                    "Home",
+                    L10n.text("common.home", fallback: "Home"),
                     systemImage: "house",
-                    description: Text("Use the welcome page to create a pipeline, generate one with AI, or load a demo.")
+                    description: Text(L10n.text("content.homeDescription", fallback: "Use the welcome page to create a pipeline, generate one with AI, or load a demo."))
                 )
             } else if selectedSection == .modeAnalytics {
                 ContentUnavailableView(
-                    "Mode Insights",
+                    L10n.text("insights.modeInsights", fallback: "Mode Insights"),
                     systemImage: "chart.bar.fill",
-                    description: Text("Insights dashboards are shown in the content area.")
+                    description: Text(L10n.text("content.insightsDescription", fallback: "Insights dashboards are shown in the content area."))
                 )
             } else if let step = vm.selectedStep, let pipeline = vm.selectedPipeline {
                 StepDetailView(step: step, pipelineID: pipeline.id)
@@ -66,9 +66,9 @@ struct ContentView: View {
                 StepPlaceholderView()
             } else {
                 ContentUnavailableView(
-                    "No Step Selected",
+                    L10n.text("content.noStepSelected", fallback: "No Step Selected"),
                     systemImage: "doc.text",
-                    description: Text("Select a step to view its details.")
+                    description: Text(L10n.text("content.noStepSelectedDescription", fallback: "Select a step to view its details."))
                 )
             }
         }
@@ -110,7 +110,7 @@ struct ContentView: View {
 
     private var sidebar: some View {
         List(selection: $vm.selectedPipelineID) {
-            Section("AI") {
+            Section(L10n.text("common.ai", fallback: "AI")) {
                 Button {
                     selectedSection = .home
                     vm.selectedPipelineID = nil
@@ -120,9 +120,9 @@ struct ContentView: View {
                         Image(systemName: "sparkles.rectangle.stack.fill")
                             .foregroundStyle(.purple)
                         VStack(alignment: .leading, spacing: 2) {
-                            Text("AI Pipeline Generator")
+                            Text(L10n.text("home.aiPipelineGenerator", fallback: "AI Pipeline Generator"))
                                 .font(.subheadline.weight(.semibold))
-                            Text("Describe task -> auto-create pipeline")
+                            Text(L10n.text("content.describeTaskAutoCreate", fallback: "Describe task -> auto-create pipeline"))
                                 .font(.caption2)
                                 .foregroundStyle(.secondary)
                         }
@@ -140,7 +140,7 @@ struct ContentView: View {
                 .buttonStyle(.plain)
             }
 
-            Section("Projects") {
+            Section(L10n.text("common.projects", fallback: "Projects")) {
                 ForEach(vm.projectGroups) { project in
                     DisclosureGroup(isExpanded: projectExpansionBinding(projectID: project.id)) {
                         ForEach(project.pipelines) { pipeline in
@@ -153,15 +153,15 @@ struct ContentView: View {
                 }
             }
 
-            Section("Insights") {
+            Section(L10n.text("common.insights", fallback: "Insights")) {
                 Button {
                     selectedSection = .modeAnalytics
                     vm.selectedPipelineID = nil
                 } label: {
                     Label {
                         VStack(alignment: .leading, spacing: 2) {
-                            Text("Mode Insights")
-                            Text("Recommendation vs current mode")
+                            Text(L10n.text("insights.modeInsights", fallback: "Mode Insights"))
+                            Text(L10n.text("insights.recommendationVsCurrent", fallback: "Recommendation vs current mode"))
                                 .font(.caption2)
                                 .foregroundStyle(.secondary)
                         }
@@ -200,20 +200,20 @@ struct ContentView: View {
             let added = newSet.subtracting(oldSet)
             expandedProjectIDs.formUnion(added)
         }
-        .navigationTitle("AI CLI Tools")
+        .navigationTitle(L10n.text("nav.aiCliTools", fallback: "AI CLI Tools"))
         .toolbar {
             ToolbarItemGroup {
                 Button {
                     showAutoPlanner = true
                 } label: {
-                    Label("AI Generate", systemImage: "sparkles")
+                    Label(L10n.text("toolbar.aiGenerate", fallback: "AI Generate"), systemImage: "sparkles")
                 }
-                .help("AI Pipeline Generator")
+                .help(L10n.text("home.aiPipelineGenerator", fallback: "AI Pipeline Generator"))
 
                 Menu {
-                    Button("New Pipeline", systemImage: "plus") { showNewPipeline = true }
+                    Button(L10n.text("pipeline.new", fallback: "New Pipeline"), systemImage: "plus") { showNewPipeline = true }
                     Divider()
-                    Button("Load Demo", systemImage: "doc.on.clipboard") { showDemoProjectPicker = true }
+                    Button(L10n.text("pipeline.loadDemo", fallback: "Load Demo"), systemImage: "doc.on.clipboard") { showDemoProjectPicker = true }
                 } label: {
                     Image(systemName: "plus")
                 }
@@ -223,7 +223,7 @@ struct ContentView: View {
                 } label: {
                     Image(systemName: "chart.bar.fill")
                 }
-                .help("Mode Insights")
+                .help(L10n.text("insights.modeInsights", fallback: "Mode Insights"))
                 Button(action: { showSettings = true }) {
                     Image(systemName: "gear")
                 }
@@ -232,11 +232,11 @@ struct ContentView: View {
         .safeAreaInset(edge: .bottom) {
             if vm.pipelines.isEmpty {
                 VStack(spacing: 8) {
-                    Text("Get started by creating your first pipeline")
+                    Text(L10n.text("content.getStarted", fallback: "Get started by creating your first pipeline"))
                         .font(.caption)
                         .foregroundStyle(.secondary)
                         .multilineTextAlignment(.center)
-                    Button("Create Pipeline") { showNewPipeline = true }
+                    Button(L10n.text("pipeline.create", fallback: "Create Pipeline")) { showNewPipeline = true }
                         .buttonStyle(.borderedProminent)
                         .controlSize(.small)
                 }
@@ -259,7 +259,7 @@ struct ContentView: View {
                             .lineLimit(1)
                             .truncationMode(.tail)
                         if pipeline.isAIGenerated {
-                            Text("AI")
+                            Text(L10n.text("common.ai", fallback: "AI"))
                                 .font(.caption2.bold())
                                 .foregroundStyle(.purple)
                                 .padding(.horizontal, 6)
@@ -268,7 +268,7 @@ struct ContentView: View {
                                 .fixedSize()
                         }
                         if pipeline.preferredRunMode == .agent {
-                            Text("Agent")
+                            Text(L10n.text("mode.agent", fallback: "Agent"))
                                 .font(.caption2.bold())
                                 .foregroundStyle(.orange)
                                 .padding(.horizontal, 6)
@@ -279,7 +279,7 @@ struct ContentView: View {
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
                     Text(
-                        "\(pipeline.stages.count) stages · \(pipeline.allSteps.count) steps"
+                        "\(pipeline.stages.count) \(L10n.text("common.stages", fallback: "stages")) · \(pipeline.allSteps.count) \(L10n.text("common.steps", fallback: "steps"))"
                     )
                         .font(.caption2)
                         .foregroundStyle(.secondary)
@@ -291,18 +291,18 @@ struct ContentView: View {
                         .font(.caption)
                         .foregroundStyle(isAgentRunning ? .purple : .green)
                         .symbolEffect(.pulse, options: .repeating)
-                        .help(isAgentRunning ? "Agent is running" : "Pipeline is running")
+                        .help(isAgentRunning ? L10n.text("content.agentRunning", fallback: "Agent is running") : L10n.text("content.pipelineRunning", fallback: "Pipeline is running"))
                 }
             }
             .padding(.vertical, 2)
         }
         .contextMenu {
-            Button("Edit", systemImage: "pencil") {
+            Button(L10n.text("common.edit", fallback: "Edit"), systemImage: "pencil") {
                 editingPipeline = pipeline
             }
             .disabled(vm.isPipelineExecuting(pipeline.id))
 
-            Button("Delete", role: .destructive) {
+            Button(L10n.text("common.delete", fallback: "Delete"), role: .destructive) {
                 vm.deletePipeline(pipeline.id)
             }
             .disabled(vm.isPipelineExecuting(pipeline.id) || vm.isPipelineQueued(pipeline.id))
@@ -364,9 +364,9 @@ private struct WelcomeView: View {
                     Image(systemName: "flowchart.fill")
                         .font(.system(size: 56))
                         .foregroundStyle(.blue.gradient)
-                    Text("AI CLI Orchestrator")
+                    Text(L10n.text("home.title", fallback: "AI CLI Orchestrator"))
                         .font(.largeTitle.bold())
-                    Text("Mix Codex, Claude & Cursor in one pipeline.\nCode, review, fix, retry \u{2014} all automated.")
+                    Text(L10n.text("home.subtitle", fallback: "Mix Codex, Claude & Cursor in one pipeline.\nCode, review, fix, retry — all automated."))
                         .font(.body)
                         .foregroundStyle(.secondary)
                         .multilineTextAlignment(.center)
@@ -385,10 +385,10 @@ private struct WelcomeView: View {
                                 .symbolEffect(.pulse, options: .repeating, isActive: isHoveringAI)
                         }
                         VStack(alignment: .leading, spacing: 4) {
-                            Text("AI Pipeline Generator")
+                            Text(L10n.text("home.aiPipelineGenerator", fallback: "AI Pipeline Generator"))
                                 .font(.title3.bold())
                                 .foregroundStyle(.primary)
-                            Text("Describe what you want to do and let AI build the pipeline for you")
+                            Text(L10n.text("home.aiPipelineGeneratorSubtitle", fallback: "Describe what you want to do and let AI build the pipeline for you"))
                                 .font(.subheadline)
                                 .foregroundStyle(.secondary)
                         }
@@ -416,15 +416,15 @@ private struct WelcomeView: View {
                     ActionCard(
                         icon: "plus.rectangle.on.folder",
                         color: .blue,
-                        title: "New Pipeline",
-                        subtitle: "Manually build stages & steps",
+                        title: L10n.text("pipeline.new", fallback: "New Pipeline"),
+                        subtitle: L10n.text("pipeline.manualBuild", fallback: "Manually build stages & steps"),
                         action: onNewPipeline
                     )
                     ActionCard(
                         icon: "doc.on.clipboard",
                         color: .orange,
-                        title: "Load Demo",
-                        subtitle: "See a sample pipeline in action",
+                        title: L10n.text("pipeline.loadDemo", fallback: "Load Demo"),
+                        subtitle: L10n.text("pipeline.loadDemoSubtitle", fallback: "See a sample pipeline in action"),
                         action: onLoadDemo
                     )
                 }
@@ -432,23 +432,23 @@ private struct WelcomeView: View {
 
                 GroupBox {
                     VStack(alignment: .leading, spacing: 16) {
-                        Text("How It Works").font(.headline)
+                        Text(L10n.text("common.howItWorks", fallback: "How It Works")).font(.headline)
 
                         WorkflowStep(number: 1, icon: "sparkles", color: .purple,
-                                     title: "Describe Your Task",
-                                     detail: "Tell the AI what you want to build or fix \u{2014} it generates a full pipeline automatically.")
+                                     title: L10n.text("home.workflow.describeTask", fallback: "Describe Your Task"),
+                                     detail: L10n.text("home.workflow.describeTaskDetail", fallback: "Tell the AI what you want to build or fix — it generates a full pipeline automatically."))
 
                         WorkflowStep(number: 2, icon: "rectangle.stack", color: .indigo,
-                                     title: "Review Stages & Steps",
-                                     detail: "Each stage groups related steps. Choose parallel (all at once) or sequential (one by one).")
+                                     title: L10n.text("home.workflow.review", fallback: "Review Stages & Steps"),
+                                     detail: L10n.text("home.workflow.reviewDetail", fallback: "Each stage groups related steps. Choose parallel (all at once) or sequential (one by one)."))
 
                         WorkflowStep(number: 3, icon: "gearshape.2", color: .teal,
-                                     title: "Customize if Needed",
-                                     detail: "Adjust prompts, tools, and dependencies \u{2014} or just run with the AI defaults.")
+                                     title: L10n.text("home.workflow.customize", fallback: "Customize if Needed"),
+                                     detail: L10n.text("home.workflow.customizeDetail", fallback: "Adjust prompts, tools, and dependencies — or just run with the AI defaults."))
 
                         WorkflowStep(number: 4, icon: "play.fill", color: .green,
-                                     title: "Run the Pipeline",
-                                     detail: "The DAG scheduler executes steps wave-by-wave, respecting dependencies.")
+                                     title: L10n.text("home.workflow.run", fallback: "Run the Pipeline"),
+                                     detail: L10n.text("home.workflow.runDetail", fallback: "The DAG scheduler executes steps wave-by-wave, respecting dependencies."))
                     }
                     .padding(8)
                 }
@@ -456,11 +456,11 @@ private struct WelcomeView: View {
 
                 GroupBox {
                     VStack(alignment: .leading, spacing: 12) {
-                        Text("Available Tools").font(.headline)
+                        Text(L10n.text("home.availableTools", fallback: "Available Tools")).font(.headline)
                         HStack(spacing: 20) {
-                            ToolBadge(tool: .codex, role: "Coding + verify/fix")
-                            ToolBadge(tool: .claude, role: "Optional analysis")
-                            ToolBadge(tool: .cursor, role: "Code review")
+                            ToolBadge(tool: .codex, role: L10n.text("tool.role.codex", fallback: "Coding + verify/fix"))
+                            ToolBadge(tool: .claude, role: L10n.text("tool.role.claude", fallback: "Optional analysis"))
+                            ToolBadge(tool: .cursor, role: L10n.text("tool.role.cursor", fallback: "Code review"))
                         }
                     }
                     .padding(8)
@@ -547,9 +547,9 @@ private struct StepPlaceholderView: View {
             Image(systemName: "hand.point.left")
                 .font(.system(size: 40))
                 .foregroundStyle(.secondary)
-            Text("Select a Step")
+            Text(L10n.text("content.selectStep", fallback: "Select a Step"))
                 .font(.title3.bold())
-            Text("Click on any step in the pipeline editor\nto configure its command, prompt, and dependencies.")
+            Text(L10n.text("content.selectStepDescription", fallback: "Click on any step in the pipeline editor\nto configure its command, prompt, and dependencies."))
                 .font(.callout)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
@@ -562,9 +562,18 @@ private struct StepPlaceholderView: View {
 
 private struct NewPipelineSheet: View {
     private enum ProjectSelectionMode: String, CaseIterable, Identifiable {
-        case existing = "Existing Project"
-        case new = "New Project"
+        case existing = "existing"
+        case new = "new"
         var id: Self { self }
+
+        var title: String {
+            switch self {
+            case .existing:
+                return L10n.text("project.existing", fallback: "Existing Project")
+            case .new:
+                return L10n.text("project.new", fallback: "New Project")
+            }
+        }
     }
 
     @EnvironmentObject var vm: AppViewModel
@@ -577,23 +586,23 @@ private struct NewPipelineSheet: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
-            Text("New Pipeline").font(.title2.bold())
+            Text(L10n.text("pipeline.new", fallback: "New Pipeline")).font(.title2.bold())
 
-            GroupBox("Project") {
+            GroupBox(L10n.text("common.project", fallback: "Project")) {
                 VStack(alignment: .leading, spacing: 8) {
                     if !existingProjects.isEmpty {
-                        Picker("Project Source", selection: $projectSelectionMode) {
+                        Picker(L10n.text("project.source", fallback: "Project Source"), selection: $projectSelectionMode) {
                             ForEach(ProjectSelectionMode.allCases) { mode in
-                                Text(mode.rawValue).tag(mode)
+                                Text(mode.title).tag(mode)
                             }
                         }
                         .pickerStyle(.segmented)
                     }
 
                     if projectSelectionMode == .existing, !existingProjects.isEmpty {
-                        Picker("Reuse Existing Project", selection: $selectedExistingProjectDirectory) {
+                        Picker(L10n.text("project.reuseExisting", fallback: "Reuse Existing Project"), selection: $selectedExistingProjectDirectory) {
                             ForEach(existingProjects, id: \.workingDirectory) { project in
-                                Text("\(project.displayName) (\(project.pipelines.count) pipelines)")
+                                Text("\(project.displayName) (\(project.pipelines.count) \(L10n.text("project.pipelines", fallback: "pipelines")))")
                                     .tag(project.workingDirectory)
                             }
                         }
@@ -602,19 +611,19 @@ private struct NewPipelineSheet: View {
                             syncNameWithWorkingDirectory(newValue, force: false)
                         }
 
-                        Text("Reuse an existing project directory and create another pipeline under it.")
+                        Text(L10n.text("project.reuseExistingCreateAnother", fallback: "Reuse an existing project directory and create another pipeline under it."))
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     } else {
                         HStack {
-                            TextField("Select project folder", text: $workingDirectory)
+                            TextField(L10n.text("project.selectFolder", fallback: "Select project folder"), text: $workingDirectory)
                                 .textFieldStyle(.roundedBorder)
                                 .onChange(of: workingDirectory) { _, newValue in
                                     syncNameWithWorkingDirectory(newValue, force: false)
                                 }
-                            Button("Browse") { browseFolder() }
+                            Button(L10n.text("common.browse", fallback: "Browse")) { browseFolder() }
                         }
-                        Text("Choose which project this pipeline should run against.")
+                        Text(L10n.text("project.pipelineRunsAgainst", fallback: "Choose which project this pipeline should run against."))
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
@@ -622,18 +631,18 @@ private struct NewPipelineSheet: View {
                 .padding(4)
             }
 
-            TextField("Pipeline Name", text: $name)
+            TextField(L10n.text("pipeline.name", fallback: "Pipeline Name"), text: $name)
                 .textFieldStyle(.roundedBorder)
 
-            Text("Each project can contain multiple pipelines, and all CLI steps run inside the selected project directory.")
+            Text(L10n.text("project.multiplePipelinesHint", fallback: "Each project can contain multiple pipelines, and all CLI steps run inside the selected project directory."))
                 .font(.caption)
                 .foregroundStyle(.secondary)
 
             HStack {
-                Button("Cancel") { dismiss() }
+                Button(L10n.text("common.cancel", fallback: "Cancel")) { dismiss() }
                     .keyboardShortcut(.cancelAction)
                 Spacer()
-                Button("Create") {
+                Button(L10n.text("common.create", fallback: "Create")) {
                     vm.createPipeline(
                         name: name.trimmingCharacters(in: .whitespacesAndNewlines),
                         workingDirectory: targetWorkingDirectory
@@ -711,16 +720,16 @@ private struct DemoProjectSheet: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
-            Text("Load Demo Pipeline").font(.title2.bold())
+            Text(L10n.text("pipeline.loadDemoPipeline", fallback: "Load Demo Pipeline")).font(.title2.bold())
 
-            GroupBox("Project") {
+            GroupBox(L10n.text("common.project", fallback: "Project")) {
                 VStack(alignment: .leading, spacing: 8) {
                     HStack {
-                        TextField("Select project folder", text: $workingDirectory)
+                        TextField(L10n.text("project.selectFolder", fallback: "Select project folder"), text: $workingDirectory)
                             .textFieldStyle(.roundedBorder)
-                        Button("Browse") { browseFolder() }
+                        Button(L10n.text("common.browse", fallback: "Browse")) { browseFolder() }
                     }
-                    Text("The demo pipeline will run all of its steps inside this project.")
+                    Text(L10n.text("project.demoPipelineRunsInside", fallback: "The demo pipeline will run all of its steps inside this project."))
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
@@ -728,10 +737,10 @@ private struct DemoProjectSheet: View {
             }
 
             HStack {
-                Button("Cancel") { dismiss() }
+                Button(L10n.text("common.cancel", fallback: "Cancel")) { dismiss() }
                     .keyboardShortcut(.cancelAction)
                 Spacer()
-                Button("Load Demo") {
+                Button(L10n.text("pipeline.loadDemo", fallback: "Load Demo")) {
                     vm.createDemoPipeline(workingDirectory: workingDirectory)
                     dismiss()
                 }
@@ -760,6 +769,7 @@ private struct SettingsSheet: View {
     @EnvironmentObject var vm: AppViewModel
     @ObservedObject private var profileManager = CLIProfileManager.shared
     @Environment(\.dismiss) var dismiss
+    @AppStorage(L10n.storageKey) private var appLanguage = AppLanguage.system.rawValue
 
     @State private var detectionResults: [CLIProfileManager.DetectionResult] = []
     @State private var isDetecting = false
@@ -773,7 +783,7 @@ private struct SettingsSheet: View {
     var body: some View {
         VStack(spacing: 0) {
             HStack {
-                Text("Settings")
+                    Text(L10n.text("settings.title", fallback: "Settings"))
                     .font(.title2.bold())
                 Spacer()
             }
@@ -785,10 +795,10 @@ private struct SettingsSheet: View {
 
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
-                    GroupBox("CLI Environment") {
+                    GroupBox(L10n.text("cli.environment", fallback: "CLI Environment")) {
                         VStack(alignment: .leading, spacing: 12) {
                             Toggle(
-                                "Use alternate command mode for Codex and Claude",
+                                L10n.text("cli.useAlternateMode", fallback: "Use alternate command mode for Codex and Claude"),
                                 isOn: Binding(
                                     get: { profileManager.useInternalCommands },
                                     set: { enabled in
@@ -801,13 +811,13 @@ private struct SettingsSheet: View {
 
                             Text(
                                 profileManager.useInternalCommands
-                                    ? "Alternate mode is active. Codex and Claude use alternate command mapping."
-                                    : "Standard mode is active. Codex and Claude use standard command mapping."
+                                    ? L10n.text("cli.alternateModeActive", fallback: "Alternate mode is active. Codex and Claude use alternate command mapping.")
+                                    : L10n.text("cli.standardModeActive", fallback: "Standard mode is active. Codex and Claude use standard command mapping.")
                             )
                             .font(.caption2)
                             .foregroundStyle(.secondary)
 
-                            Text("Cursor stays on a fixed command mode.")
+                            Text(L10n.text("cli.cursorFixedMode", fallback: "Cursor stays on a fixed command mode."))
                                 .font(.caption2)
                                 .foregroundStyle(.secondary)
 
@@ -816,7 +826,7 @@ private struct SettingsSheet: View {
                             if isDetecting {
                                 HStack(spacing: 8) {
                                     ProgressView().controlSize(.small)
-                                    Text("Checking tools...")
+                                    Text(L10n.text("common.checkingTools", fallback: "Checking tools..."))
                                         .font(.caption)
                                         .foregroundStyle(.secondary)
                                 }
@@ -850,35 +860,45 @@ private struct SettingsSheet: View {
                                 cliToolRow(tool)
                             }
 
-                            Text("Switching this mode updates all pipeline steps that don't have a custom command override.")
+                            Text(L10n.text("cli.modeSwitchUpdatesSteps", fallback: "Switching this mode updates all pipeline steps that don't have a custom command override."))
                                 .font(.caption2)
                                 .foregroundStyle(.secondary)
                         }
                         .padding(8)
                     }
 
-                    GroupBox("AI Pipeline Generator") {
+                    GroupBox(L10n.text("settings.interfaceLanguage", fallback: "Interface Language")) {
+                        Picker(L10n.text("settings.language", fallback: "Language"), selection: languageBinding) {
+                            ForEach(AppLanguage.allCases) { language in
+                                Text(language.displayName).tag(language.rawValue)
+                            }
+                        }
+                        .pickerStyle(.segmented)
+                        .padding(8)
+                    }
+
+                    GroupBox(L10n.text("home.aiPipelineGenerator", fallback: "AI Pipeline Generator")) {
                         VStack(alignment: .leading, spacing: 8) {
-                            TextField("Default Model", text: $vm.llmConfig.model)
+                            TextField(L10n.text("common.defaultModel", fallback: "Default Model"), text: $vm.llmConfig.model)
                                 .textFieldStyle(.roundedBorder)
 
                             HStack {
-                                Text("Customize planner policy when needed.")
+                                Text(L10n.text("planner.customizeWhenNeeded", fallback: "Customize planner policy when needed."))
                                     .font(.caption2)
                                     .foregroundStyle(.secondary)
                                 Spacer()
-                                Button("Edit Prompt Policy…") {
+                                Button(L10n.text("planner.editPromptPolicy", fallback: "Edit Prompt Policy…")) {
                                     showPolicyEditor = true
                                 }
                                 .controlSize(.small)
                             }
 
                             if trimmedCustomPolicy.isEmpty {
-                                Text("Using built-in planning policy.")
+                                Text(L10n.text("planner.usingBuiltInPolicy", fallback: "Using built-in planning policy."))
                                     .font(.caption2)
                                     .foregroundStyle(.secondary)
                             } else {
-                                Text("Custom policy enabled")
+                                Text(L10n.text("planner.customPolicyEnabled", fallback: "Custom policy enabled"))
                                     .font(.caption2.bold())
                                 Text(trimmedCustomPolicy)
                                     .font(.caption2)
@@ -889,14 +909,14 @@ private struct SettingsSheet: View {
                         .padding(8)
                     }
 
-                    GroupBox("Execution Scheduling") {
+                    GroupBox(L10n.text("execution.scheduling", fallback: "Execution Scheduling")) {
                         VStack(alignment: .leading, spacing: 8) {
                             Stepper(
                                 value: $vm.maxConcurrentPipelineRuns,
                                 in: 1...4
                             ) {
                                 HStack {
-                                    Text("Max concurrent pipeline runs")
+                                    Text(L10n.text("execution.maxConcurrentPipelineRuns", fallback: "Max concurrent pipeline runs"))
                                     Spacer()
                                     Text("\(vm.maxConcurrentPipelineRuns)")
                                         .font(.caption.bold())
@@ -904,7 +924,7 @@ private struct SettingsSheet: View {
                                 }
                             }
 
-                            Text("Pipelines sharing the same working directory are automatically serialized for safety.")
+                            Text(L10n.text("execution.sharedDirectorySerialized", fallback: "Pipelines sharing the same working directory are automatically serialized for safety."))
                                 .font(.caption2)
                                 .foregroundStyle(.secondary)
                                 .lineLimit(2)
@@ -912,16 +932,16 @@ private struct SettingsSheet: View {
                         .padding(8)
                     }
 
-                    GroupBox("Execution Notifications") {
+                    GroupBox(L10n.text("execution.notifications", fallback: "Execution Notifications")) {
                         VStack(alignment: .leading, spacing: 8) {
-                            Toggle("Enable completion notifications", isOn: executionNotificationsEnabledBinding)
+                            Toggle(L10n.text("execution.enableCompletionNotifications", fallback: "Enable completion notifications"), isOn: executionNotificationsEnabledBinding)
                                 .disabled(isRequestingNotificationPermission)
 
                             if vm.executionNotificationSettings.isEnabled {
-                                Toggle("Notify when completed", isOn: $vm.executionNotificationSettings.notifyOnCompleted)
-                                Toggle("Notify when failed", isOn: $vm.executionNotificationSettings.notifyOnFailed)
-                                Toggle("Notify when cancelled", isOn: $vm.executionNotificationSettings.notifyOnCancelled)
-                                Toggle("Play sound", isOn: $vm.executionNotificationSettings.playSound)
+                                Toggle(L10n.text("execution.notifyCompleted", fallback: "Notify when completed"), isOn: $vm.executionNotificationSettings.notifyOnCompleted)
+                                Toggle(L10n.text("execution.notifyFailed", fallback: "Notify when failed"), isOn: $vm.executionNotificationSettings.notifyOnFailed)
+                                Toggle(L10n.text("execution.notifyCancelled", fallback: "Notify when cancelled"), isOn: $vm.executionNotificationSettings.notifyOnCancelled)
+                                Toggle(L10n.text("execution.playSound", fallback: "Play sound"), isOn: $vm.executionNotificationSettings.playSound)
                             }
 
                             Text(notificationAuthorizationHint)
@@ -930,7 +950,7 @@ private struct SettingsSheet: View {
                                 .lineLimit(2)
 
                             HStack(spacing: 8) {
-                                Button("Send Test Notification") {
+                                Button(L10n.text("execution.sendTestNotification", fallback: "Send Test Notification")) {
                                     sendExecutionTestNotification()
                                 }
                                 .controlSize(.small)
@@ -963,7 +983,7 @@ private struct SettingsSheet: View {
 
             HStack {
                 Spacer()
-                Button("Done") { dismiss() }
+                Button(L10n.text("common.done", fallback: "Done")) { dismiss() }
                     .keyboardShortcut(.defaultAction)
             }
             .padding(.horizontal, 24)
@@ -1004,7 +1024,7 @@ private struct SettingsSheet: View {
             Button {
                 copyCommandTemplate(commandTemplate, for: tool)
             } label: {
-                Label(copied ? "Copied" : "Copy", systemImage: copied ? "checkmark" : "doc.on.doc")
+                Label(copied ? L10n.text("common.copied", fallback: "Copied") : L10n.text("common.copy", fallback: "Copy"), systemImage: copied ? "checkmark" : "doc.on.doc")
                     .font(.caption2)
             }
             .buttonStyle(.borderless)
@@ -1038,6 +1058,13 @@ private struct SettingsSheet: View {
         )
     }
 
+    private var languageBinding: Binding<String> {
+        Binding(
+            get: { appLanguage },
+            set: { appLanguage = $0 }
+        )
+    }
+
     private var executionNotificationsEnabledBinding: Binding<Bool> {
         Binding(
             get: { vm.executionNotificationSettings.isEnabled },
@@ -1047,7 +1074,7 @@ private struct SettingsSheet: View {
                 if !shouldEnable {
                     vm.executionNotificationSettings.isEnabled = false
                     notificationStatusIsError = false
-                    notificationStatusMessage = "Execution notifications disabled."
+                    notificationStatusMessage = L10n.text("execution.notificationsDisabled", fallback: "Execution notifications disabled.")
                     return
                 }
 
@@ -1058,10 +1085,10 @@ private struct SettingsSheet: View {
                         isRequestingNotificationPermission = false
                         if granted {
                             notificationStatusIsError = false
-                            notificationStatusMessage = "Execution notifications enabled."
+                            notificationStatusMessage = L10n.text("execution.notificationsEnabled", fallback: "Execution notifications enabled.")
                         } else {
                             notificationStatusIsError = true
-                            notificationStatusMessage = "Permission denied. Enable AgentCrew in System Settings > Notifications."
+                            notificationStatusMessage = L10n.text("execution.permissionDeniedSettings", fallback: "Permission denied. Enable AgentCrew in System Settings > Notifications.")
                         }
                     }
                 }
@@ -1072,11 +1099,11 @@ private struct SettingsSheet: View {
     private var notificationAuthorizationHint: String {
         switch vm.executionNotificationAuthorizationState {
         case .authorized:
-            return "Notification permission is granted."
+            return L10n.text("execution.permissionGranted", fallback: "Notification permission is granted.")
         case .denied:
-            return "Notification permission is denied. Open System Settings > Notifications > AgentCrew to allow alerts."
+            return L10n.text("execution.permissionDeniedOpenSettings", fallback: "Notification permission is denied. Open System Settings > Notifications > AgentCrew to allow alerts.")
         case .notDetermined:
-            return "Permission has not been requested yet."
+            return L10n.text("execution.permissionNotRequested", fallback: "Permission has not been requested yet.")
         }
     }
 
@@ -1103,13 +1130,13 @@ private struct SettingsSheet: View {
                 await MainActor.run {
                     isSendingNotificationTest = false
                     notificationStatusIsError = false
-                    notificationStatusMessage = "Test notification scheduled (3s). Switch to another app to verify banner delivery."
+                    notificationStatusMessage = L10n.text("execution.testNotificationScheduled", fallback: "Test notification scheduled (3s). Switch to another app to verify banner delivery.")
                 }
             } catch {
                 await MainActor.run {
                     isSendingNotificationTest = false
                     notificationStatusIsError = true
-                    notificationStatusMessage = "Failed to send test notification: \(error.localizedDescription)"
+                    notificationStatusMessage = "\(L10n.text("execution.testNotificationFailedPrefix", fallback: "Failed to send test notification: "))\(error.localizedDescription)"
                 }
             }
         }

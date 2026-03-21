@@ -2,9 +2,18 @@ import SwiftUI
 
 struct AutoPlannerSheet: View {
     private enum ProjectSelectionMode: String, CaseIterable, Identifiable {
-        case existing = "Existing Project"
-        case new = "New Project"
+        case existing = "existing"
+        case new = "new"
         var id: Self { self }
+
+        var title: String {
+            switch self {
+            case .existing:
+                return L10n.text("project.existing", fallback: "Existing Project")
+            case .new:
+                return L10n.text("project.new", fallback: "New Project")
+            }
+        }
     }
 
     @EnvironmentObject var vm: AppViewModel
@@ -17,39 +26,39 @@ struct AutoPlannerSheet: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
-            Text("AI Pipeline Generator").font(.title2.bold())
-            Text("Describe your task in natural language and the AI will generate a multi-step pipeline.")
+            Text(L10n.text("home.aiPipelineGenerator", fallback: "AI Pipeline Generator")).font(.title2.bold())
+            Text(L10n.text("planner.subtitle", fallback: "Describe your task in natural language and the AI will generate a multi-step pipeline."))
                 .font(.callout).foregroundStyle(.secondary)
 
-            GroupBox("Project") {
+            GroupBox(L10n.text("common.project", fallback: "Project")) {
                 VStack(alignment: .leading, spacing: 8) {
                     if !existingProjects.isEmpty {
-                        Picker("Project Source", selection: $projectSelectionMode) {
+                        Picker(L10n.text("project.source", fallback: "Project Source"), selection: $projectSelectionMode) {
                             ForEach(ProjectSelectionMode.allCases) { mode in
-                                Text(mode.rawValue).tag(mode)
+                                Text(mode.title).tag(mode)
                             }
                         }
                         .pickerStyle(.segmented)
                     }
 
                     if projectSelectionMode == .existing, !existingProjects.isEmpty {
-                        Picker("Reuse Existing Project", selection: $selectedExistingProjectDirectory) {
+                        Picker(L10n.text("project.reuseExisting", fallback: "Reuse Existing Project"), selection: $selectedExistingProjectDirectory) {
                             ForEach(existingProjects, id: \.workingDirectory) { project in
-                                Text("\(project.displayName) (\(project.pipelines.count) pipelines)")
+                                Text("\(project.displayName) (\(project.pipelines.count) \(L10n.text("project.pipelines", fallback: "pipelines")))")
                                     .tag(project.workingDirectory)
                             }
                         }
                         .pickerStyle(.menu)
-                        Text("Reuse an existing project to generate another pipeline.")
+                        Text(L10n.text("project.reuseExistingDescription", fallback: "Reuse an existing project to generate another pipeline."))
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     } else {
                         HStack {
-                            TextField("Select project folder", text: $workingDirectory)
+                            TextField(L10n.text("project.selectFolder", fallback: "Select project folder"), text: $workingDirectory)
                                 .textFieldStyle(.roundedBorder)
-                            Button("Browse") { browseFolder() }
+                            Button(L10n.text("common.browse", fallback: "Browse")) { browseFolder() }
                         }
-                        Text("Choose which project this generated pipeline should run against.")
+                        Text(L10n.text("project.generatedPipelineRunsAgainst", fallback: "Choose which project this generated pipeline should run against."))
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
@@ -58,7 +67,7 @@ struct AutoPlannerSheet: View {
             }
             .disabled(vm.isPlanningInProgress)
 
-            GroupBox("Task Description") {
+            GroupBox(L10n.text("planner.taskDescription", fallback: "Task Description")) {
                 TextEditor(text: $prompt)
                     .font(.body)
                     .frame(minHeight: 120)
@@ -66,20 +75,20 @@ struct AutoPlannerSheet: View {
             }
             .disabled(vm.isPlanningInProgress)
 
-            GroupBox("Planning Policy") {
+            GroupBox(L10n.text("planner.policy", fallback: "Planning Policy")) {
                 VStack(alignment: .leading, spacing: 8) {
                     if trimmedCustomPolicy.isEmpty {
-                        Text("Current prompt: built-in planner prompt only.")
+                        Text(L10n.text("planner.currentBuiltInOnly", fallback: "Current prompt: built-in planner prompt only."))
                             .font(.caption)
                             .foregroundStyle(.secondary)
-                        Text("To customize it, go to Settings > AI Pipeline Generator > Edit Prompt Policy...")
+                        Text(L10n.text("planner.customizePath", fallback: "To customize it, go to Settings > AI Pipeline Generator > Edit Prompt Policy..."))
                             .font(.caption2)
                             .foregroundStyle(.secondary)
                     } else {
-                        Text("Current prompt: built-in planner prompt + custom policy from Settings.")
+                        Text(L10n.text("planner.currentBuiltInPlusCustom", fallback: "Current prompt: built-in planner prompt + custom policy from Settings."))
                             .font(.caption)
                             .foregroundStyle(.secondary)
-                        Text("Edit path: Settings > AI Pipeline Generator > Edit Prompt Policy...")
+                        Text(L10n.text("planner.editPath", fallback: "Edit path: Settings > AI Pipeline Generator > Edit Prompt Policy..."))
                             .font(.caption2)
                             .foregroundStyle(.secondary)
                         Text(trimmedCustomPolicy)
@@ -103,7 +112,7 @@ struct AutoPlannerSheet: View {
             }
 
             HStack {
-                Button(vm.isPlanningInProgress ? "Stop" : "Cancel") {
+                Button(vm.isPlanningInProgress ? L10n.text("common.stop", fallback: "Stop") : L10n.text("common.cancel", fallback: "Cancel")) {
                     if vm.isPlanningInProgress {
                         generationTask?.cancel()
                     } else {
@@ -118,7 +127,7 @@ struct AutoPlannerSheet: View {
                     Text(progressStatusText)
                         .font(.callout)
                 }
-                Button("Generate Pipeline") {
+                Button(L10n.text("planner.generate", fallback: "Generate Pipeline")) {
                     generationTask?.cancel()
                     generationTask = Task {
                         await vm.generatePipeline(from: prompt, workingDirectory: targetWorkingDirectory)
@@ -196,9 +205,9 @@ struct AutoPlannerSheet: View {
 
     private var progressStatusText: String {
         if let phase = vm.planningPhase {
-            return "Generating… \(phase.title)"
+            return "\(L10n.text("planner.generating", fallback: "Generating…")) \(phase.title)"
         }
-        return "Generating…"
+        return L10n.text("planner.generating", fallback: "Generating…")
     }
 
     private var planningErrorIcon: String {
@@ -214,7 +223,7 @@ struct AutoPlannerSheet: View {
     }
 
     private var planningProgressPanel: some View {
-        GroupBox("Generation Progress") {
+        GroupBox(L10n.text("planner.generationProgress", fallback: "Generation Progress")) {
             VStack(alignment: .leading, spacing: 10) {
                 ForEach(PlanningPhase.allCases, id: \.self) { phase in
                     PlanningPhaseRow(
@@ -250,7 +259,7 @@ struct AutoPlannerSheet: View {
     private var planningLogText: String {
         let trimmed = vm.planningLogs.trimmingCharacters(in: .whitespacesAndNewlines)
         if trimmed.isEmpty {
-            return "Waiting for agent CLI output..."
+            return L10n.text("planner.waitingOutput", fallback: "Waiting for agent CLI output...")
         }
         return trimmed
     }
@@ -304,9 +313,9 @@ private struct PlanningPhaseRow: View {
 
     private var statusText: String {
         switch state {
-        case .pending: "Pending"
-        case .running: "Running"
-        case .completed: "Done"
+        case .pending: L10n.text("status.pending", fallback: "Pending")
+        case .running: L10n.text("status.runningProgress", fallback: "Running")
+        case .completed: L10n.text("common.done", fallback: "Done")
         }
     }
 
@@ -327,9 +336,9 @@ struct PlanningPolicyEditorSheet: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
-            Text("Edit Planning Policy")
+            Text(L10n.text("planner.editPolicy", fallback: "Edit Planning Policy"))
                 .font(.title3.bold())
-            Text("This policy is appended to the planner prompt. Keep it concise and outcome-focused.")
+            Text(L10n.text("planner.policyDescription", fallback: "This policy is appended to the planner prompt. Keep it concise and outcome-focused."))
                 .font(.callout)
                 .foregroundStyle(.secondary)
 
@@ -340,16 +349,16 @@ struct PlanningPolicyEditorSheet: View {
                 .background(.quaternary.opacity(0.35), in: RoundedRectangle(cornerRadius: 8))
 
             HStack {
-                Button("Reset to Built-in") {
+                Button(L10n.text("planner.resetBuiltIn", fallback: "Reset to Built-in")) {
                     draftPolicy = ""
                 }
-                Button("View Built-in Prompt") {
+                Button(L10n.text("planner.viewBuiltInPrompt", fallback: "View Built-in Prompt")) {
                     showBuiltInPrompt = true
                 }
                 Spacer()
-                Button("Cancel") { dismiss() }
+                Button(L10n.text("common.cancel", fallback: "Cancel")) { dismiss() }
                     .keyboardShortcut(.cancelAction)
-                Button("Save") {
+                Button(L10n.text("common.save", fallback: "Save")) {
                     customPolicy = draftPolicy.trimmingCharacters(in: .whitespacesAndNewlines)
                     dismiss()
                 }
@@ -374,9 +383,9 @@ private struct BuiltInPlannerPromptSheet: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("Built-in Planner Prompt")
+            Text(L10n.text("planner.builtInPrompt", fallback: "Built-in Planner Prompt"))
                 .font(.title3.bold())
-            Text("Read-only reference. This is the built-in planner prompt used before your custom policy is appended.")
+            Text(L10n.text("planner.builtInPromptDescription", fallback: "Read-only reference. This is the built-in planner prompt used before your custom policy is appended."))
                 .font(.callout)
                 .foregroundStyle(.secondary)
 
@@ -390,12 +399,12 @@ private struct BuiltInPlannerPromptSheet: View {
             .background(.quaternary.opacity(0.35), in: RoundedRectangle(cornerRadius: 8))
 
             HStack {
-                Button(didCopy ? "Copied" : "Copy") {
+                Button(didCopy ? L10n.text("common.copied", fallback: "Copied") : L10n.text("common.copy", fallback: "Copy")) {
                     copyPromptToClipboard()
                 }
                 .controlSize(.small)
                 Spacer()
-                Button("Close") { dismiss() }
+                Button(L10n.text("common.close", fallback: "Close")) { dismiss() }
                     .keyboardShortcut(.defaultAction)
             }
         }

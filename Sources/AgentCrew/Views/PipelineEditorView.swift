@@ -109,8 +109,8 @@ struct PipelineEditorView: View {
                         }
                         Text(
                             isPipelineExecuting
-                                ? (isAgentExecuting ? "Agent running..." : "Running...")
-                                : "Queued..."
+                                ? (isAgentExecuting ? L10n.text("pipeline.agentRunning", fallback: "Agent running...") : L10n.text("status.running", fallback: "Running..."))
+                                : L10n.text("status.queued", fallback: "Queued...")
                         )
                             .font(.caption)
                             .foregroundStyle(.secondary)
@@ -123,8 +123,8 @@ struct PipelineEditorView: View {
                     } label: {
                         Label(
                             vm.isPipelineStopRequested(pipeline.id)
-                                ? "Stopping..."
-                                : (isAgentExecuting ? "Stop Agent" : "Stop Pipeline"),
+                                ? L10n.text("common.stopping", fallback: "Stopping...")
+                                : (isAgentExecuting ? L10n.text("pipeline.stopAgent", fallback: "Stop Agent") : L10n.text("pipeline.stopPipeline", fallback: "Stop Pipeline")),
                             systemImage: "stop.fill"
                         )
                     }
@@ -136,17 +136,17 @@ struct PipelineEditorView: View {
                 Button {
                     vm.showFlowchart = true
                 } label: {
-                    Label("Flowchart", systemImage: "point.3.connected.trianglepath.dotted")
+                    Label(L10n.text("flowchart.titleShort", fallback: "Flowchart"), systemImage: "point.3.connected.trianglepath.dotted")
                 }
                 .buttonStyle(.bordered)
                 .tint(.blue)
                 .disabled(pipeline.allSteps.isEmpty)
-                .help("Show execution flowchart (wave-based DAG)")
+                .help(L10n.text("flowchart.showHelp", fallback: "Show execution flowchart (wave-based DAG)"))
 
                 Button {
                     showEditPipeline = true
                 } label: {
-                    Label("Edit", systemImage: "pencil")
+                    Label(L10n.text("common.edit", fallback: "Edit"), systemImage: "pencil")
                 }
                 .buttonStyle(.bordered)
                 .disabled(isPipelineExecuting)
@@ -156,7 +156,7 @@ struct PipelineEditorView: View {
                     Task { await vm.executeSelectedMode(for: pipeline) }
                 } label: {
                     Label(
-                        selectedRunMode == .agent ? "Run Agent" : "Run Pipeline",
+                        selectedRunMode == .agent ? L10n.text("pipeline.runAgent", fallback: "Run Agent") : L10n.text("pipeline.runPipeline", fallback: "Run Pipeline"),
                         systemImage: selectedRunMode == .agent ? "sparkles" : "play.fill"
                     )
                 }
@@ -165,11 +165,11 @@ struct PipelineEditorView: View {
                 .disabled(isPipelineExecuting || isPipelineQueued || pipeline.allSteps.isEmpty)
                 .help(
                     isPipelineQueued
-                        ? (vm.queuedReason(for: pipeline.id) ?? "This pipeline is waiting in queue.")
+                        ? (vm.queuedReason(for: pipeline.id) ?? L10n.text("pipeline.waitingInQueue", fallback: "This pipeline is waiting in queue."))
                         : (
                             selectedRunMode == .agent
-                                ? "Run as adaptive multi-round Agent session."
-                                : "Run as deterministic Pipeline DAG."
+                                ? L10n.text("pipeline.runAsAgentHelp", fallback: "Run as adaptive multi-round Agent session.")
+                                : L10n.text("pipeline.runAsPipelineHelp", fallback: "Run as deterministic Pipeline DAG.")
                         )
                 )
             }
@@ -214,7 +214,7 @@ struct PipelineEditorView: View {
                     .font(.caption).foregroundStyle(.secondary)
                     .lineLimit(1)
             } else {
-                Text("No working directory set")
+                Text(L10n.text("project.noWorkingDirectory", fallback: "No working directory set"))
                     .font(.caption).foregroundStyle(.orange)
             }
         }
@@ -229,10 +229,10 @@ struct PipelineEditorView: View {
     private var modeSelectionPanel: some View {
         VStack(alignment: .leading, spacing: 6) {
             HStack(spacing: 10) {
-                Text("Run Mode")
+                Text(L10n.text("pipeline.runMode", fallback: "Run Mode"))
                     .font(.caption.bold())
 
-                Picker("Run Mode", selection: selectedRunModeBinding) {
+                Picker(L10n.text("pipeline.runMode", fallback: "Run Mode"), selection: selectedRunModeBinding) {
                     ForEach(OrchestrationMode.allCases) { mode in
                         Text(mode.title).tag(mode)
                     }
@@ -241,9 +241,9 @@ struct PipelineEditorView: View {
                 .pickerStyle(.segmented)
                 .frame(width: 220)
                 .disabled(!canSwitchRunMode)
-                .help(canSwitchRunMode ? "Choose the mode used for the next run." : "Stop current run before switching mode.")
+                .help(canSwitchRunMode ? L10n.text("pipeline.chooseModeForNextRun", fallback: "Choose the mode used for the next run.") : L10n.text("pipeline.stopBeforeSwitchingMode", fallback: "Stop current run before switching mode."))
 
-                Text("Recommended: \(recommendation.recommendedMode.title)")
+                Text("\(L10n.text("common.recommended", fallback: "Recommended")): \(recommendation.recommendedMode.title)")
                     .font(.caption2.bold())
                     .padding(.horizontal, 8)
                     .padding(.vertical, 3)
@@ -252,12 +252,12 @@ struct PipelineEditorView: View {
 
                 Spacer()
 
-                Text("Score \(recommendation.score)")
+                Text("\(L10n.text("common.score", fallback: "Score")) \(recommendation.score)")
                     .font(.caption2)
                     .foregroundStyle(.secondary)
 
                 if selectedRunMode != recommendation.recommendedMode {
-                    Button("Use Recommended") {
+                    Button(L10n.text("common.useRecommended", fallback: "Use Recommended")) {
                         vm.setPreferredRunMode(
                             recommendation.recommendedMode,
                             for: pipeline.id,
@@ -297,7 +297,7 @@ struct PipelineEditorView: View {
                 .foregroundStyle(.orange)
 
             VStack(alignment: .leading, spacing: 2) {
-                Text("Suggestion: switch to \(suggestion.suggestedMode.title)")
+                Text("\(L10n.text("common.suggestion", fallback: "Suggestion")): \(L10n.text("pipeline.switchTo", fallback: "switch to")) \(suggestion.suggestedMode.title)")
                     .font(.caption.bold())
                     .foregroundStyle(.orange)
                 Text(suggestion.reasons.joined(separator: " · "))
@@ -308,13 +308,13 @@ struct PipelineEditorView: View {
 
             Spacer()
 
-            Button("Switch to Agent") {
+            Button(L10n.text("pipeline.switchToAgent", fallback: "Switch to Agent")) {
                 vm.acceptRuntimeSwitchSuggestion(for: pipeline.id)
             }
             .buttonStyle(.borderedProminent)
             .controlSize(.small)
 
-            Button("Dismiss") {
+            Button(L10n.text("common.dismiss", fallback: "Dismiss")) {
                 vm.dismissRuntimeModeSuggestion(for: pipeline.id)
             }
             .buttonStyle(.borderless)
@@ -336,24 +336,24 @@ struct PipelineEditorView: View {
                     .foregroundStyle(agentStatusColor(session.status))
 
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("Agent session: \(session.status.rawValue)")
+                    Text("\(L10n.text("agent.session", fallback: "Agent session")): \(session.status.localizedTitle)")
                         .font(.caption.bold())
                         .foregroundStyle(agentStatusColor(session.status))
-                    Text("Round \(session.currentRound)/\(session.maxRounds)")
+                    Text("\(L10n.text("agent.round", fallback: "Round")) \(session.currentRound)/\(session.maxRounds)")
                         .font(.caption2)
                         .foregroundStyle(.secondary)
                     if session.coverageRequiredCount > 0 {
-                        Text("Coverage: \(session.coverageResolvedCount)/\(session.coverageRequiredCount) resolved")
+                        Text("\(L10n.text("agent.coverage", fallback: "Coverage")): \(session.coverageResolvedCount)/\(session.coverageRequiredCount) \(L10n.text("agent.resolved", fallback: "resolved"))")
                             .font(.caption2)
                             .foregroundStyle(session.unresolvedCoverageItems.isEmpty ? .green : .orange)
                     }
                     if let latestRound = session.rounds.last {
                         if let strategy = latestRound.strategy {
-                            Text("Strategy: \(strategy.displayName)")
+                            Text("\(L10n.text("agent.strategy", fallback: "Strategy")): \(strategy.displayName)")
                                 .font(.caption2)
                                 .foregroundStyle(.secondary)
                             if strategy == .retryFailedStage {
-                                Text("Only unresolved steps are retried.")
+                                Text(L10n.text("agent.onlyUnresolvedRetried", fallback: "Only unresolved steps are retried."))
                                     .font(.caption2)
                                     .foregroundStyle(.secondary)
                             }
@@ -376,13 +376,13 @@ struct PipelineEditorView: View {
             if session.status == .waitingHuman {
                 VStack(alignment: .leading, spacing: 6) {
                     TextField(
-                        "Optional instruction for next round (e.g. keep API stable, avoid schema change)",
+                        L10n.text("agent.optionalInstruction", fallback: "Optional instruction for next round (e.g. keep API stable, avoid schema change)"),
                         text: $humanApprovalInstruction
                     )
                     .textFieldStyle(.roundedBorder)
 
                     HStack(spacing: 8) {
-                        Button("Approve and Continue") {
+                        Button(L10n.text("agent.approveAndContinue", fallback: "Approve and Continue")) {
                             let instruction = humanApprovalInstruction
                             humanApprovalInstruction = ""
                             Task {
@@ -397,7 +397,7 @@ struct PipelineEditorView: View {
                         .tint(.orange)
                         .disabled(vm.isPipelineExecuting(pipeline.id) || vm.isPipelineQueued(pipeline.id))
 
-                        Button("Abort Session") {
+                        Button(L10n.text("agent.abortSession", fallback: "Abort Session")) {
                             humanApprovalInstruction = ""
                             vm.abortWaitingAgentSession(for: pipeline.id)
                         }
@@ -465,7 +465,7 @@ struct PipelineEditorView: View {
                 .foregroundStyle(.red)
 
             VStack(alignment: .leading, spacing: 2) {
-                Text("Latest run failed at stage: \(failedStage.stageName)")
+                Text("\(L10n.text("pipeline.latestRunFailedAtStage", fallback: "Latest run failed at stage")): \(failedStage.stageName)")
                     .font(.caption.bold())
                     .foregroundStyle(.red)
                 if let errorMessage = latestRunRecord?.errorMessage,
@@ -482,15 +482,15 @@ struct PipelineEditorView: View {
             Button {
                 Task { await vm.retryStage(failedStage.stageID, in: pipeline.id) }
             } label: {
-                Label("Retry Failed Stage", systemImage: "arrow.clockwise")
+                Label(L10n.text("pipeline.retryFailedStage", fallback: "Retry Failed Stage"), systemImage: "arrow.clockwise")
             }
             .buttonStyle(.borderedProminent)
             .controlSize(.small)
             .disabled(vm.isPipelineExecuting(pipeline.id) || vm.isPipelineQueued(pipeline.id))
             .help(
                 vm.isPipelineQueued(pipeline.id)
-                    ? "This pipeline is already queued."
-                    : (vm.isPipelineExecuting(pipeline.id) ? "This pipeline is currently running." : "Retry this failed stage only.")
+                    ? L10n.text("pipeline.alreadyQueued", fallback: "This pipeline is already queued.")
+                    : (vm.isPipelineExecuting(pipeline.id) ? L10n.text("pipeline.currentlyRunning", fallback: "This pipeline is currently running.") : L10n.text("pipeline.retryFailedStageOnly", fallback: "Retry this failed stage only."))
             )
         }
         .padding(.horizontal, 10)
@@ -509,10 +509,10 @@ struct PipelineEditorView: View {
                 .foregroundStyle(.blue.gradient)
 
             VStack(spacing: 8) {
-                Text("Build Your Pipeline")
+                Text(L10n.text("pipeline.buildYourPipeline", fallback: "Build Your Pipeline"))
                     .font(.title2.bold())
 
-                Text("A pipeline has **Stages**, each containing **Steps**.\nStages run top-to-bottom. Steps within a stage run\neither in parallel or sequentially.")
+                Text(L10n.text("pipeline.buildYourPipelineDescription", fallback: "A pipeline has **Stages**, each containing **Steps**.\nStages run top-to-bottom. Steps within a stage run\neither in parallel or sequentially."))
                     .font(.callout)
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
@@ -524,9 +524,9 @@ struct PipelineEditorView: View {
                     Image(systemName: "arrow.triangle.branch")
                         .font(.title3)
                         .foregroundStyle(.blue)
-                    Text("Parallel")
+                    Text(L10n.text("mode.parallel", fallback: "Parallel"))
                         .font(.caption.bold())
-                    Text("All steps run\nat the same time")
+                    Text(L10n.text("pipeline.parallelDescription", fallback: "All steps run\nat the same time"))
                         .font(.caption2)
                         .foregroundStyle(.secondary)
                         .multilineTextAlignment(.center)
@@ -539,9 +539,9 @@ struct PipelineEditorView: View {
                     Image(systemName: "arrow.down")
                         .font(.title3)
                         .foregroundStyle(.orange)
-                    Text("Sequential")
+                    Text(L10n.text("mode.sequential", fallback: "Sequential"))
                         .font(.caption.bold())
-                    Text("Steps run one\nafter another")
+                    Text(L10n.text("pipeline.sequentialDescription", fallback: "Steps run one\nafter another"))
                         .font(.caption2)
                         .foregroundStyle(.secondary)
                         .multilineTextAlignment(.center)
@@ -552,13 +552,13 @@ struct PipelineEditorView: View {
             }
 
             VStack(spacing: 10) {
-                Button("Load Demo Template", systemImage: "doc.badge.plus") {
+                Button(L10n.text("pipeline.loadDemoTemplate", fallback: "Load Demo Template"), systemImage: "doc.badge.plus") {
                     vm.loadDemoTemplate(into: pipeline.id)
                 }
                 .buttonStyle(.borderedProminent)
                 .controlSize(.large)
 
-                Button("Add Empty Stage") {
+                Button(L10n.text("pipeline.addEmptyStage", fallback: "Add Empty Stage")) {
                     showAddStage = true
                 }
                 .buttonStyle(.bordered)
@@ -579,7 +579,7 @@ struct PipelineEditorView: View {
         } label: {
             HStack {
                 Image(systemName: "plus.rectangle")
-                Text("Add Another Stage")
+                Text(L10n.text("pipeline.addAnotherStage", fallback: "Add Another Stage"))
             }
             .font(.subheadline)
             .foregroundStyle(.secondary)
@@ -595,32 +595,32 @@ struct PipelineEditorView: View {
 
     private var addStageSheet: some View {
         VStack(spacing: 16) {
-            Text("Add Stage").font(.title3.bold())
+            Text(L10n.text("pipeline.addStage", fallback: "Add Stage")).font(.title3.bold())
 
-            TextField("Stage Name (e.g. Coding, Review)", text: $newStageName)
+            TextField(L10n.text("pipeline.stageNamePlaceholder", fallback: "Stage Name (e.g. Coding, Review)"), text: $newStageName)
                 .textFieldStyle(.roundedBorder)
 
             VStack(alignment: .leading, spacing: 6) {
-                Text("Execution Mode").font(.subheadline.bold())
-                Picker("Execution Mode", selection: $newStageMode) {
-                    Label("Parallel", systemImage: "arrow.triangle.branch").tag(ExecutionMode.parallel)
-                    Label("Sequential", systemImage: "arrow.down").tag(ExecutionMode.sequential)
+                Text(L10n.text("execution.mode", fallback: "Execution Mode")).font(.subheadline.bold())
+                Picker(L10n.text("execution.mode", fallback: "Execution Mode"), selection: $newStageMode) {
+                    Label(L10n.text("mode.parallel", fallback: "Parallel"), systemImage: "arrow.triangle.branch").tag(ExecutionMode.parallel)
+                    Label(L10n.text("mode.sequential", fallback: "Sequential"), systemImage: "arrow.down").tag(ExecutionMode.sequential)
                 }
                 .pickerStyle(.segmented)
                 Text(newStageMode == .parallel
-                     ? "All steps in this stage will run at the same time."
-                     : "Steps will run one after another, in order."
+                     ? L10n.text("pipeline.parallelStageHelp", fallback: "All steps in this stage will run at the same time.")
+                     : L10n.text("pipeline.sequentialStageHelp", fallback: "Steps will run one after another, in order.")
                 )
                 .font(.caption)
                 .foregroundStyle(.secondary)
             }
 
             HStack {
-                Button("Cancel") { showAddStage = false }
+                Button(L10n.text("common.cancel", fallback: "Cancel")) { showAddStage = false }
                     .keyboardShortcut(.cancelAction)
                 Spacer()
-                Button("Add Stage") {
-                    vm.addStage(to: pipeline.id, name: newStageName.isEmpty ? "Stage \(pipeline.stages.count + 1)" : newStageName, mode: newStageMode)
+                Button(L10n.text("pipeline.addStage", fallback: "Add Stage")) {
+                    vm.addStage(to: pipeline.id, name: newStageName.isEmpty ? "\(L10n.text("common.stage", fallback: "Stage")) \(pipeline.stages.count + 1)" : newStageName, mode: newStageMode)
                     newStageName = ""
                     showAddStage = false
                 }
@@ -634,9 +634,9 @@ struct PipelineEditorView: View {
 
     private var editPipelineHelpText: String {
         if isPipelineExecuting {
-            return "Stop this pipeline run before editing pipeline settings."
+            return L10n.text("pipeline.stopBeforeEditing", fallback: "Stop this pipeline run before editing pipeline settings.")
         }
-        return "Edit pipeline name and project directory."
+        return L10n.text("pipeline.editNameAndDirectory", fallback: "Edit pipeline name and project directory.")
     }
 }
 
@@ -659,42 +659,42 @@ struct EditPipelineSheet: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
-            Text("Edit Pipeline").font(.title2.bold())
+            Text(L10n.text("pipeline.edit", fallback: "Edit Pipeline")).font(.title2.bold())
 
-            GroupBox("Project") {
+            GroupBox(L10n.text("common.project", fallback: "Project")) {
                 VStack(alignment: .leading, spacing: 8) {
                     HStack {
-                        TextField("Select project folder", text: $workingDirectory)
+                        TextField(L10n.text("project.selectFolder", fallback: "Select project folder"), text: $workingDirectory)
                             .textFieldStyle(.roundedBorder)
                             .disabled(vm.isPipelineExecuting(pipeline.id))
                             .onChange(of: workingDirectory) { _, newValue in
                                 syncNameWithWorkingDirectory(newValue, force: false)
                             }
-                        Button("Browse") { browseFolder() }
+                        Button(L10n.text("common.browse", fallback: "Browse")) { browseFolder() }
                             .disabled(vm.isPipelineExecuting(pipeline.id))
                     }
-                    Text("All steps in this pipeline will run inside this project directory.")
+                    Text(L10n.text("project.allStepsRunInsideDirectory", fallback: "All steps in this pipeline will run inside this project directory."))
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
                 .padding(4)
             }
 
-            TextField("Pipeline Name", text: $name)
+            TextField(L10n.text("pipeline.name", fallback: "Pipeline Name"), text: $name)
                 .textFieldStyle(.roundedBorder)
                 .disabled(vm.isPipelineExecuting(pipeline.id))
 
             if vm.isPipelineExecuting(pipeline.id) {
-                Label("Stop the current run before editing the pipeline name or project directory.", systemImage: "lock.fill")
+                Label(L10n.text("pipeline.stopBeforeEditingNameOrDirectory", fallback: "Stop the current run before editing the pipeline name or project directory."), systemImage: "lock.fill")
                     .font(.caption)
                     .foregroundStyle(.orange)
             }
 
             HStack {
-                Button("Cancel") { dismiss() }
+                Button(L10n.text("common.cancel", fallback: "Cancel")) { dismiss() }
                     .keyboardShortcut(.cancelAction)
                 Spacer()
-                Button("Save") {
+                Button(L10n.text("common.save", fallback: "Save")) {
                     vm.updatePipeline(
                         pipeline.id,
                         name: name.trimmingCharacters(in: .whitespacesAndNewlines),
@@ -752,10 +752,10 @@ private struct StageCard: View {
                     HStack {
                         Spacer()
                         VStack(spacing: 6) {
-                            Text("No steps yet")
+                            Text(L10n.text("pipeline.noStepsYet", fallback: "No steps yet"))
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
-                            Text("Add a step and configure the command to run.")
+                            Text(L10n.text("pipeline.addStepConfigureCommand", fallback: "Add a step and configure the command to run."))
                                 .font(.caption2)
                                 .foregroundStyle(.tertiary)
                         }
@@ -776,7 +776,7 @@ private struct StageCard: View {
                 Button {
                     let stepNumber = stage.steps.count + 1
                     let step = PipelineStep(
-                        name: "Step \(stepNumber)",
+                        name: "\(L10n.text("common.step", fallback: "Step")) \(stepNumber)",
                         prompt: ""
                     )
                     vm.addStep(to: stage.id, in: pipelineID, step: step)
@@ -784,7 +784,7 @@ private struct StageCard: View {
                 } label: {
                     HStack(spacing: 4) {
                         Image(systemName: "plus.circle.fill")
-                        Text("Add Step")
+                        Text(L10n.text("pipeline.addStep", fallback: "Add Step"))
                     }
                     .font(.caption)
                     .foregroundStyle(.blue)
@@ -802,7 +802,7 @@ private struct StageCard: View {
                 Spacer()
 
                 if let latestStatus = latestKnownStageStatus {
-                    Text("Latest \(latestStatus.rawValue.capitalized)")
+                    Text("\(L10n.text("common.latest", fallback: "Latest")) \(latestStatus.localizedTitle)")
                         .font(.caption2.bold())
                         .padding(.horizontal, 6)
                         .padding(.vertical, 2)
@@ -810,7 +810,7 @@ private struct StageCard: View {
                         .foregroundStyle(stageStatusColor(latestStatus))
                 }
 
-                Text(stage.executionMode == .parallel ? "Parallel" : "Sequential")
+                Text(stage.executionMode.localizedTitle)
                     .font(.caption2)
                     .padding(.horizontal, 6).padding(.vertical, 2)
                     .background(
@@ -828,7 +828,7 @@ private struct StageCard: View {
                     Button {
                         Task { await vm.retryStage(stage.id, in: pipelineID) }
                     } label: {
-                        Label("Retry", systemImage: "arrow.clockwise")
+                        Label(L10n.text("common.retry", fallback: "Retry"), systemImage: "arrow.clockwise")
                             .font(.caption2)
                     }
                     .buttonStyle(.borderless)
@@ -883,30 +883,30 @@ private struct StageCard: View {
     }
 
     private var stageStopHelpText: String {
-        guard isPipelineExecuting else { return "This pipeline is not running." }
+        guard isPipelineExecuting else { return L10n.text("pipeline.notRunning", fallback: "This pipeline is not running.") }
         if isAgentExecuting {
-            return "Stage-level stop is unavailable in Agent mode."
+            return L10n.text("pipeline.stageStopUnavailableAgent", fallback: "Stage-level stop is unavailable in Agent mode.")
         }
         if vm.isPipelineStopRequested(pipelineID) {
-            return "Pipeline stop has been requested."
+            return L10n.text("pipeline.stopRequested", fallback: "Pipeline stop has been requested.")
         }
         if isStoppingStage {
-            return "Stopping this stage..."
+            return L10n.text("pipeline.stoppingStage", fallback: "Stopping this stage...")
         }
         if canStopStage {
-            return "Stop running and pending steps in this stage."
+            return L10n.text("pipeline.stopStageHelp", fallback: "Stop running and pending steps in this stage.")
         }
-        return "This stage has already finished."
+        return L10n.text("pipeline.stageAlreadyFinished", fallback: "This stage has already finished.")
     }
 
     private var stageRetryHelpText: String {
         if vm.isPipelineQueued(pipelineID) {
-            return "This pipeline is already queued."
+            return L10n.text("pipeline.alreadyQueued", fallback: "This pipeline is already queued.")
         }
         if vm.isPipelineExecuting(pipelineID) {
-            return "This pipeline is currently running."
+            return L10n.text("pipeline.currentlyRunning", fallback: "This pipeline is currently running.")
         }
-        return "Retry this failed stage only."
+        return L10n.text("pipeline.retryFailedStageOnly", fallback: "Retry this failed stage only.")
     }
 
     private func stageStatusColor(_ status: StepStatus) -> Color {
@@ -961,7 +961,7 @@ private struct StepRow: View {
                         .foregroundStyle(.secondary)
                         .lineLimit(1)
                 } else {
-                    Text("Click to set prompt \u{2192}")
+                    Text(L10n.text("pipeline.clickToSetPrompt", fallback: "Click to set prompt →"))
                         .font(.caption2)
                         .foregroundStyle(.orange)
                 }
@@ -975,7 +975,7 @@ private struct StepRow: View {
                 Button {
                     Task { await vm.retryStep(step.id, in: pipelineID) }
                 } label: {
-                    Label("Retry", systemImage: "arrow.clockwise")
+                    Label(L10n.text("common.retry", fallback: "Retry"), systemImage: "arrow.clockwise")
                         .font(.caption2)
                 }
                 .buttonStyle(.borderless)
@@ -1013,7 +1013,7 @@ private struct StepRow: View {
             Circle()
                 .fill(statusColor(status))
                 .frame(width: 8, height: 8)
-            Text(status.rawValue.capitalized)
+            Text(status.localizedTitle)
                 .font(.caption2)
                 .foregroundStyle(.secondary)
         }
@@ -1040,12 +1040,12 @@ private struct StepRow: View {
 
     private var stepRetryHelpText: String {
         if vm.isPipelineQueued(pipelineID) {
-            return "This pipeline is already queued."
+            return L10n.text("pipeline.alreadyQueued", fallback: "This pipeline is already queued.")
         }
         if vm.isPipelineExecuting(pipelineID) {
-            return "This pipeline is currently running."
+            return L10n.text("pipeline.currentlyRunning", fallback: "This pipeline is currently running.")
         }
-        return "Retry this failed or skipped step only."
+        return L10n.text("pipeline.retryFailedOrSkippedStepOnly", fallback: "Retry this failed or skipped step only.")
     }
 
     private func statusColor(_ status: StepStatus) -> Color {

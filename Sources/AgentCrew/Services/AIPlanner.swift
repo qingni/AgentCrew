@@ -13,16 +13,16 @@ enum PlannerError: Error, LocalizedError {
     var errorDescription: String? {
         switch self {
         case .cliUnavailable:
-            "Agent CLI is not available. Make sure `cursor-agent` is installed and logged in."
+            L10n.text("planner.error.cliUnavailable", fallback: "Agent CLI is not available. Make sure `cursor-agent` is installed and logged in.")
         case .commandFailed(let msg):
-            "Agent CLI failed: \(msg)"
+            "\(L10n.text("planner.error.commandFailedPrefix", fallback: "Agent CLI failed: "))\(msg)"
         case .cancelled:
-            "Pipeline generation was cancelled."
+            L10n.text("planner.error.cancelled", fallback: "Pipeline generation was cancelled.")
         case .emptyResponse:
-            "Agent CLI returned empty output."
+            L10n.text("planner.error.emptyResponse", fallback: "Agent CLI returned empty output.")
         case .invalidResponse:
-            "Failed to find valid pipeline JSON in Agent CLI output."
-        case .parsingError(let msg): "Failed to parse pipeline: \(msg)"
+            L10n.text("planner.error.invalidResponse", fallback: "Failed to find valid pipeline JSON in Agent CLI output.")
+        case .parsingError(let msg): "\(L10n.text("planner.error.parsingPrefix", fallback: "Failed to parse pipeline: "))\(msg)"
         }
     }
 }
