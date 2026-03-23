@@ -8,15 +8,15 @@ enum OrchestrationMode: String, Codable, CaseIterable, Identifiable, Sendable {
 
     var title: String {
         switch self {
-        case .pipeline: "Pipeline"
-        case .agent: "Agent"
+        case .pipeline: L10n.text("mode.pipeline", fallback: "Pipeline")
+        case .agent: L10n.text("mode.agent", fallback: "Agent")
         }
     }
 
     var subtitle: String {
         switch self {
-        case .pipeline: "Fixed steps, faster and predictable"
-        case .agent: "Round-based execution with auto replan"
+        case .pipeline: L10n.text("mode.pipelineSubtitle", fallback: "Fixed steps, faster and predictable")
+        case .agent: L10n.text("mode.agentSubtitle", fallback: "Round-based execution with auto replan")
         }
     }
 }
@@ -49,13 +49,13 @@ enum AgentRepairStrategy: String, Codable, Sendable {
     var displayName: String {
         switch self {
         case .originalPipeline:
-            return "Original pipeline"
+            return L10n.text("agent.strategy.originalPipeline", fallback: "Original pipeline")
         case .retryFailedStage:
-            return "Retry failed stage"
+            return L10n.text("agent.strategy.retryFailedStage", fallback: "Retry failed stage")
         case .localPatchInsert:
-            return "Local patch + retry"
+            return L10n.text("agent.strategy.localPatchInsert", fallback: "Local patch + retry")
         case .globalReplan:
-            return "Global replan"
+            return L10n.text("agent.strategy.globalReplan", fallback: "Global replan")
         }
     }
 }

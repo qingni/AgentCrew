@@ -78,7 +78,7 @@ struct PipelineFlowchartView: View {
                 let status = vm.stepStatuses[resolved.step.id]
                     ?? latestStepStatus(resolved.step.id)
                     ?? resolved.step.status
-                let stageName = stageMap[resolved.stageID]?.name ?? "Stage"
+                let stageName = stageMap[resolved.stageID]?.name ?? L10n.text("common.stage", fallback: "Stage")
                 result.append(FlowNode(
                     id: resolved.step.id,
                     name: resolved.step.name,
@@ -135,9 +135,9 @@ struct PipelineFlowchartView: View {
     private var focusHintText: String {
         if let lockedNodeID,
            let name = nodes.first(where: { $0.id == lockedNodeID })?.name {
-            return "Path locked on '\(name)'. Click node again to unlock."
+            return "\(L10n.text("flowchart.lockedPathPrefix", fallback: "Path locked on '"))\(name)\(L10n.text("flowchart.lockedPathSuffix", fallback: "'. Click node again to unlock."))"
         }
-        return "Hover a node to inspect dependencies. Click a node to lock path highlighting."
+        return L10n.text("flowchart.focusHint", fallback: "Hover a node to inspect dependencies. Click a node to lock path highlighting.")
     }
 
     var body: some View {
@@ -205,9 +205,9 @@ struct PipelineFlowchartView: View {
                 .foregroundStyle(.blue.gradient)
 
             VStack(alignment: .leading, spacing: 2) {
-                Text("Execution Flowchart")
+                Text(L10n.text("flowchart.title", fallback: "Execution Flowchart"))
                     .font(.headline)
-                Text("\(pipeline.name) — \(waves.count) waves, \(nodes.count) steps")
+                Text("\(pipeline.name) — \(waves.count) \(L10n.text("flowchart.waves", fallback: "waves")), \(nodes.count) \(L10n.text("flowchart.steps", fallback: "steps"))")
                     .font(.caption)
                     .foregroundStyle(.secondary)
                 Text(focusHintText)
@@ -225,11 +225,11 @@ struct PipelineFlowchartView: View {
 
     private var legend: some View {
         HStack(spacing: 16) {
-            legendItem(color: .secondary, label: "Pending")
-            legendItem(color: .blue, label: "Running")
-            legendItem(color: .green, label: "Completed")
-            legendItem(color: .red, label: "Failed")
-            legendItem(color: .orange, label: "Skipped")
+            legendItem(color: .secondary, label: L10n.text("status.pending", fallback: "Pending"))
+            legendItem(color: .blue, label: L10n.text("status.running", fallback: "Running"))
+            legendItem(color: .green, label: L10n.text("status.completed", fallback: "Completed"))
+            legendItem(color: .red, label: L10n.text("status.failed", fallback: "Failed"))
+            legendItem(color: .orange, label: L10n.text("status.skipped", fallback: "Skipped"))
         }
         .fixedSize()
     }
@@ -248,9 +248,9 @@ struct PipelineFlowchartView: View {
 
     private var emptyState: some View {
         ContentUnavailableView(
-            "No Steps",
+            L10n.text("flowchart.noSteps", fallback: "No Steps"),
             systemImage: "point.3.connected.trianglepath.dotted",
-            description: Text("Add stages and steps to see the execution flowchart.")
+            description: Text(L10n.text("flowchart.noStepsDescription", fallback: "Add stages and steps to see the execution flowchart."))
         )
     }
 
@@ -258,7 +258,7 @@ struct PipelineFlowchartView: View {
 
     private var waveLabelsLayer: some View {
         ForEach(Array(waves.enumerated()), id: \.offset) { waveIndex, _ in
-            Text("Wave \(waveIndex + 1)")
+            Text("\(L10n.text("flowchart.wave", fallback: "Wave")) \(waveIndex + 1)")
                 .font(.caption.bold())
                 .foregroundStyle(.blue)
                 .padding(.horizontal, 8)

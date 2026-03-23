@@ -43,9 +43,9 @@ struct CLIProfileSetupView: View {
                     .foregroundStyle(.white)
             }
             VStack(alignment: .leading, spacing: 2) {
-                Text("CLI Environment")
+                Text(L10n.text("cli.environment", fallback: "CLI Environment"))
                     .font(.title2.bold())
-                Text("Choose a command mode for Codex and Claude")
+                Text(L10n.text("cli.environmentSubtitle", fallback: "Choose a command mode for Codex and Claude"))
                     .font(.callout)
                     .foregroundStyle(.secondary)
             }
@@ -61,7 +61,7 @@ struct CLIProfileSetupView: View {
         GroupBox {
             VStack(alignment: .leading, spacing: 10) {
                 Toggle(
-                    "Use alternate command mode for Codex and Claude",
+                    L10n.text("cli.useAlternateMode", fallback: "Use alternate command mode for Codex and Claude"),
                     isOn: Binding(
                         get: { profileManager.useInternalCommands },
                         set: { enabled in
@@ -74,13 +74,13 @@ struct CLIProfileSetupView: View {
 
                 Text(
                     profileManager.useInternalCommands
-                        ? "Alternate mode is active. Codex and Claude use alternate command mapping."
-                        : "Standard mode is active. Codex and Claude use standard command mapping."
+                        ? L10n.text("cli.alternateModeActive", fallback: "Alternate mode is active. Codex and Claude use alternate command mapping.")
+                        : L10n.text("cli.standardModeActive", fallback: "Standard mode is active. Codex and Claude use standard command mapping.")
                 )
                 .font(.caption2)
                 .foregroundStyle(.secondary)
 
-                Text("Cursor stays on a fixed command mode.")
+                Text(L10n.text("cli.cursorFixedMode", fallback: "Cursor stays on a fixed command mode."))
                     .font(.caption2)
                     .foregroundStyle(.secondary)
             }
@@ -94,13 +94,13 @@ struct CLIProfileSetupView: View {
         GroupBox {
             VStack(alignment: .leading, spacing: 10) {
                 HStack {
-                    Text("Tool Availability")
+                    Text(L10n.text("cli.toolAvailability", fallback: "Tool Availability"))
                         .font(.subheadline.bold())
                     Spacer()
                     if isDetecting {
                         ProgressView()
                             .controlSize(.small)
-                        Text("Checking...")
+                        Text(L10n.text("common.checking", fallback: "Checking..."))
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
@@ -150,16 +150,16 @@ struct CLIProfileSetupView: View {
             HStack(spacing: 6) {
                 Image(systemName: "info.circle")
                     .foregroundStyle(.blue)
-                Text("How this works")
+                Text(L10n.text("common.howItWorks", fallback: "How this works"))
                     .font(.caption.bold())
                     .foregroundStyle(.secondary)
             }
 
-            Text("This setting only changes Codex and Claude behavior.")
+            Text(L10n.text("cli.settingAffectsCodexClaude", fallback: "This setting only changes Codex and Claude behavior."))
                 .font(.caption2)
                 .foregroundStyle(.secondary)
 
-            Text("You can change this later in **Settings**")
+            Text(L10n.text("cli.changeLaterInSettings", fallback: "You can change this later in **Settings**"))
                 .font(.caption2)
                 .foregroundStyle(.secondary)
         }
@@ -169,7 +169,7 @@ struct CLIProfileSetupView: View {
 
     private var footer: some View {
         HStack {
-            Button("Skip") {
+            Button(L10n.text("common.skip", fallback: "Skip")) {
                 profileManager.skipSetup()
                 dismiss()
             }
@@ -177,7 +177,7 @@ struct CLIProfileSetupView: View {
 
             Spacer()
 
-            Button("Continue") {
+            Button(L10n.text("common.continue", fallback: "Continue")) {
                 profileManager.completeSetup()
                 dismiss()
             }

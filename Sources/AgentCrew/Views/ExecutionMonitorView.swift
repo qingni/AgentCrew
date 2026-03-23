@@ -2,9 +2,18 @@ import SwiftUI
 
 struct ExecutionMonitorView: View {
     private enum MonitorTab: String, CaseIterable, Identifiable {
-        case running = "Running Record"
-        case history = "History"
+        case running = "running"
+        case history = "history"
         var id: Self { self }
+
+        var title: String {
+            switch self {
+            case .running:
+                return L10n.text("monitor.runningRecord", fallback: "Running Record")
+            case .history:
+                return L10n.text("monitor.history", fallback: "History")
+            }
+        }
     }
 
     private let outputPreviewCharacterLimit = 8_000
@@ -51,7 +60,7 @@ struct ExecutionMonitorView: View {
             if isPipelineExecuting {
                 ProgressView()
                     .controlSize(.small)
-                Text("Executing…")
+                Text(L10n.text("monitor.executing", fallback: "Executing…"))
                     .font(.caption.bold())
             } else if let latestRunRecord {
                 Image(systemName: runStatusIcon(latestRunRecord.status))
@@ -64,14 +73,14 @@ struct ExecutionMonitorView: View {
                         .foregroundStyle(runStatusColor(latestRunRecord.status))
                         .lineLimit(1)
                 } else {
-                    Text(latestRunRecord.status.rawValue.capitalized)
+                    Text(latestRunRecord.status.localizedTitle)
                         .font(.caption.bold())
                         .foregroundStyle(runStatusColor(latestRunRecord.status))
                 }
             } else {
                 Image(systemName: "terminal")
                     .foregroundStyle(.secondary)
-                Text("Run Monitor").font(.caption.bold())
+                Text(L10n.text("monitor.title", fallback: "Run Monitor")).font(.caption.bold())
             }
             Spacer()
             statusSummary
@@ -81,9 +90,9 @@ struct ExecutionMonitorView: View {
     }
 
     private var tabPicker: some View {
-        Picker("Monitor View", selection: $selectedTab) {
+        Picker(L10n.text("monitor.view", fallback: "Monitor View"), selection: $selectedTab) {
             ForEach(MonitorTab.allCases) { tab in
-                Text(tab.rawValue).tag(tab)
+                Text(tab.title).tag(tab)
             }
         }
         .pickerStyle(.segmented)
@@ -147,9 +156,9 @@ struct ExecutionMonitorView: View {
                         }
                     } else {
                         emptyStateView(
-                            title: "No run yet",
+                            title: L10n.text("monitor.noRunYet", fallback: "No run yet"),
                             systemImage: "play.circle",
-                            message: "Run this pipeline to keep the latest execution record here."
+                            message: L10n.text("monitor.noRunYetDescription", fallback: "Run this pipeline to keep the latest execution record here.")
                         )
                     }
                 }
@@ -164,9 +173,9 @@ struct ExecutionMonitorView: View {
                 LazyVStack(alignment: .leading, spacing: 10) {
                     if recentHistoryRecords.isEmpty {
                         emptyStateView(
-                            title: "No run history",
+                            title: L10n.text("monitor.noHistory", fallback: "No run history"),
                             systemImage: "clock.arrow.circlepath",
-                            message: "Run this pipeline to see stage duration, progress, and status history."
+                            message: L10n.text("monitor.noHistoryDescription", fallback: "Run this pipeline to see stage duration, progress, and status history.")
                         )
                     } else {
                         ForEach(recentHistoryRecords) { run in
@@ -227,13 +236,13 @@ struct ExecutionMonitorView: View {
             }
 
             HStack(spacing: 6) {
-                Text("Stages:")
+                Text(L10n.text("common.stagesLabel", fallback: "Stages:"))
                     .font(.caption2)
                     .foregroundStyle(.secondary)
-                Text("\(run.completedStages)/\(run.stageRuns.count) completed")
+                Text("\(run.completedStages)/\(run.stageRuns.count) \(L10n.text("status.completed", fallback: "completed"))")
                     .font(.caption2.bold())
                 Spacer()
-                Text("Click progress to expand output")
+                Text(L10n.text("monitor.clickProgressExpand", fallback: "Click progress to expand output"))
                     .font(.caption2)
                     .foregroundStyle(.secondary)
             }
@@ -271,7 +280,7 @@ struct ExecutionMonitorView: View {
                         Text(stage.stageName)
                             .font(.caption.bold())
                         Spacer()
-                        Text(stage.status.rawValue.capitalized)
+                        Text(stage.status.localizedTitle)
                             .font(.caption2)
                             .foregroundStyle(color(for: stage.status))
                         Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
@@ -283,13 +292,13 @@ struct ExecutionMonitorView: View {
                         .controlSize(.small)
 
                     HStack(spacing: 10) {
-                        Text("\(stage.finishedSteps)/\(stage.totalSteps) done")
-                        if stage.failedSteps > 0 { Text("failed \(stage.failedSteps)") }
-                        if stage.skippedSteps > 0 { Text("skipped \(stage.skippedSteps)") }
+                        Text("\(stage.finishedSteps)/\(stage.totalSteps) \(L10n.text("common.done", fallback: "done"))")
+                        if stage.failedSteps > 0 { Text("\(L10n.text("status.failed", fallback: "failed")) \(stage.failedSteps)") }
+                        if stage.skippedSteps > 0 { Text("\(L10n.text("status.skipped", fallback: "skipped")) \(stage.skippedSteps)") }
                         if let startedAt = stage.startedAt, let endedAt = stage.endedAt {
                             Text("\(startedAt.formatted(date: .omitted, time: .shortened))-\(endedAt.formatted(date: .omitted, time: .shortened))")
                         } else if let startedAt = stage.startedAt {
-                            Text("started \(startedAt.formatted(date: .omitted, time: .shortened))")
+                            Text("\(L10n.text("common.started", fallback: "started")) \(startedAt.formatted(date: .omitted, time: .shortened))")
                         }
                         if let duration = stage.duration {
                             Text(durationText(duration))
@@ -322,7 +331,7 @@ struct ExecutionMonitorView: View {
                         Text(stepRun.stepName)
                             .font(.caption.bold())
                         Spacer()
-                        Text(stepRun.status.rawValue.capitalized)
+                        Text(stepRun.status.localizedTitle)
                             .font(.caption2)
                             .foregroundStyle(color(for: stepRun.status))
                     }
@@ -334,7 +343,7 @@ struct ExecutionMonitorView: View {
                         let renderedOutput = showFullOutput || !needsTruncation
                             ? output
                             : """
-                            ...showing latest \(outputPreviewCharacterLimit) characters...
+                            ...\(L10n.text("monitor.showingLatest", fallback: "showing latest")) \(outputPreviewCharacterLimit) \(L10n.text("monitor.characters", fallback: "characters"))...
 
                             \(previewOutput)
                             """
@@ -356,7 +365,7 @@ struct ExecutionMonitorView: View {
                         if needsTruncation {
                             HStack {
                                 Spacer()
-                                Button(showFullOutput ? "Show less" : "Show full output") {
+                                Button(showFullOutput ? L10n.text("common.showLess", fallback: "Show less") : L10n.text("monitor.showFullOutput", fallback: "Show full output")) {
                                     toggleFullOutput(for: stepRun.id)
                                 }
                                 .buttonStyle(.bordered)
@@ -364,11 +373,11 @@ struct ExecutionMonitorView: View {
                             }
                         }
                     } else if stepRun.status == .running {
-                        Text("Running... waiting for tool output.")
+                        Text(L10n.text("monitor.waitingToolOutput", fallback: "Running... waiting for tool output."))
                             .font(.caption2)
                             .foregroundStyle(.secondary)
                     } else {
-                        Text("No output captured.")
+                        Text(L10n.text("monitor.noOutputCaptured", fallback: "No output captured."))
                             .font(.caption2)
                             .foregroundStyle(.secondary)
                     }
@@ -382,7 +391,7 @@ struct ExecutionMonitorView: View {
                 Button {
                     onCollapseFromBottom(stage.id)
                 } label: {
-                    Label("Collapse", systemImage: "chevron.up")
+                    Label(L10n.text("common.collapse", fallback: "Collapse"), systemImage: "chevron.up")
                         .font(.caption)
                 }
                 .buttonStyle(.bordered)
@@ -435,9 +444,9 @@ struct ExecutionMonitorView: View {
             || run.agentStrategy != nil
         guard isAgentRun else { return nil }
 
-        var parts: [String] = ["Agent"]
+        var parts: [String] = [L10n.text("mode.agent", fallback: "Agent")]
         if let round = run.agentRoundIndex {
-            parts.append("Round \(round)")
+            parts.append("\(L10n.text("agent.round", fallback: "Round")) \(round)")
         }
         if let strategy = run.agentStrategy {
             parts.append(strategy.displayName)
@@ -461,9 +470,9 @@ struct ExecutionMonitorView: View {
             HStack(spacing: 6) {
                 Image(systemName: "checkmark.shield")
                     .foregroundStyle(resolvedCount == sortedItems.count ? .green : .orange)
-                Text("Coverage Contract")
+                Text(L10n.text("agent.coverageContract", fallback: "Coverage Contract"))
                     .font(.caption.bold())
-                Text("\(resolvedCount)/\(sortedItems.count) resolved")
+                Text("\(resolvedCount)/\(sortedItems.count) \(L10n.text("agent.resolved", fallback: "resolved"))")
                     .font(.caption2)
                     .foregroundStyle(resolvedCount == sortedItems.count ? .green : .orange)
             }
@@ -497,11 +506,11 @@ struct ExecutionMonitorView: View {
     }
 
     private func coverageStatusText(_ item: AgentCoverageItem) -> String {
-        guard let round = item.recoveredRound else { return "Pending" }
+        guard let round = item.recoveredRound else { return L10n.text("status.pending", fallback: "Pending") }
         if let strategy = item.recoveredByStrategy {
-            return "Round \(round) · \(strategy.displayName)"
+            return "\(L10n.text("agent.round", fallback: "Round")) \(round) · \(strategy.displayName)"
         }
-        return "Round \(round)"
+        return "\(L10n.text("agent.round", fallback: "Round")) \(round)"
     }
 
     private func toggleStageExpansion(_ stageRunID: UUID) {

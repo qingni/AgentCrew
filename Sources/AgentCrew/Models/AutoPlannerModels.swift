@@ -9,11 +9,11 @@ enum PlanningPhase: Int, CaseIterable, Sendable {
 
     var title: String {
         switch self {
-        case .preparingContext: "Prepare task context"
-        case .invokingAgentCLI: "Invoke Agent CLI"
-        case .generatingStructure: "Generate pipeline structure"
-        case .parsingResult: "Parse structured JSON"
-        case .creatingPipeline: "Create pipeline in app"
+        case .preparingContext: L10n.text("planner.phase.preparingContext", fallback: "Prepare task context")
+        case .invokingAgentCLI: L10n.text("planner.phase.invokingAgentCLI", fallback: "Invoke Agent CLI")
+        case .generatingStructure: L10n.text("planner.phase.generatingStructure", fallback: "Generate pipeline structure")
+        case .parsingResult: L10n.text("planner.phase.parsingResult", fallback: "Parse structured JSON")
+        case .creatingPipeline: L10n.text("planner.phase.creatingPipeline", fallback: "Create pipeline in app")
         }
     }
 }
