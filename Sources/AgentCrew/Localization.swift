@@ -48,9 +48,17 @@ private final class LocalizationAdapter {
 
     private let catalog: [String: [String: String]]
 
-    private init(bundle: Bundle = .module) {
+    private static var resourceBundle: Bundle {
+        #if SWIFT_PACKAGE
+        return .module
+        #else
+        return .main
+        #endif
+    }
+
+    private init() {
         guard
-            let url = bundle.url(forResource: "i18n", withExtension: "json"),
+            let url = Self.resourceBundle.url(forResource: "i18n", withExtension: "json"),
             let data = try? Data(contentsOf: url),
             let decoded = try? JSONDecoder().decode([String: [String: String]].self, from: data)
         else {

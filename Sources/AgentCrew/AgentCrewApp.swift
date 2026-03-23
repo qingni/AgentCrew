@@ -1,4 +1,5 @@
 import SwiftUI
+import AppKit
 
 @main
 struct AgentCrewApp: App {
@@ -6,6 +7,23 @@ struct AgentCrewApp: App {
     @StateObject private var viewModel = AppViewModel()
     @ObservedObject private var profileManager = CLIProfileManager.shared
     @State private var showCLISetup = false
+
+    init() {
+        #if SWIFT_PACKAGE
+        // When launched via `swift run` the process is a plain executable
+        // (not a .app bundle), so macOS treats it as a background process —
+        // no Dock icon, no menu bar, no Cmd-Tab entry.
+        if Bundle.main.bundleIdentifier == nil {
+            NSApplication.shared.setActivationPolicy(.regular)
+            NSApplication.shared.activate(ignoringOtherApps: true)
+
+            if let iconURL = Bundle.module.url(forResource: "AppIcon", withExtension: "png"),
+               let icon = NSImage(contentsOf: iconURL) {
+                NSApplication.shared.applicationIconImage = icon
+            }
+        }
+        #endif
+    }
 
     var body: some Scene {
         WindowGroup {
