@@ -17,7 +17,7 @@ enum ToolType: String, Codable, CaseIterable, Identifiable, Sendable {
         switch self {
         case .codex: ["gpt-5-codex", "o3", "gpt-4.1"]
         case .claude: ["sonnet", "opus", "haiku"]
-        case .cursor: ["opus-4.6", "gpt-5", "sonnet-4"]
+        case .cursor: ["claude-4.6-opus-max-thinking", "gpt-5", "sonnet-4"]
         }
     }
 

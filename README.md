@@ -46,7 +46,7 @@ AgentCrew 并非要替代某一个具体的 AI 聊天工具，而是提供一个
 ### 🔌 万物编排：原生支持任意传统 CLI
 打破“仅限 AI 工具”的局限，AgentCrew 底层拥有强大的通用执行器，通过以下架构机制实现万物编排：
 - **无缝接入现有工具链**：完美支持 `git`、`npm`、`python`、`docker`、`ffmpeg` 等任意能在 macOS 终端运行的命令。
-- **与大模型互通**：支持将提示词或前序 AI 节点的输出以占位符（`{{prompt}}`）或标准输入（stdin）的形式安全传导给 Shell 脚本。
+- **与大模型互通**：支持将提示词以占位符（`{{prompt}}`）或标准输入（stdin）安全传导给 Shell 脚本；同时支持在 Step Prompt 中引用前序依赖步骤上下文（如 `{{step:Design.summary}}`）。
 - **无限混合编排**：例如用 Cursor 编写代码，跑 `npm run test` 验证，失败时由 Agent 自动抓取报错让 Claude 分析并生成 Patch，最后由自定义 Shell 脚本完成部署。
 
 ### 📊 模式洞察与智能推荐 (Mode Insights & Recommendation)
@@ -319,6 +319,19 @@ flowchart TB
    ```
 3. **数据传导：安全转义与 Stdin**
    系统支持 `{{prompt}}` 占位符内联替换，自动对其进行安全的 Shell 转义（`shellQuote`）；若命令中没有写占位符，也会将提示词和前序输出作为标准输入流 (`stdin`) 直接喂给该命令。
+
+4. **Step 级运行记忆：确定性上下文注入**
+   在 Pipeline Prompt 中可使用运行期模板变量读取依赖步骤的结构化记忆（由调度器注入，而非依赖 Agent 自觉读取文件）：
+   - `{{step:<step-name-or-uuid>.summary}}`
+   - `{{step:<step-name-or-uuid>.decisions}}`
+   - `{{step:<step-name-or-uuid>.artifacts}}`
+   - `{{step:<step-name-or-uuid>.output.tail:2000}}`
+   - `{{step:<step-name-or-uuid>.error.tail:2000}}`
+   - `{{pipeline.failed_steps}}` / `{{pipeline.last_failed.summary}}`
+
+5. **运行期上下文镜像（M3）**
+   每次执行会将当前 Run 的结构化上下文镜像到工作目录下 `.agentcrew/context.md`，用于调试、审计与人工介入。  
+   注意：执行期模板解析的真源是内存态 `RunContextStore`，`context.md` 是可视化镜像层。
 
 ---
 

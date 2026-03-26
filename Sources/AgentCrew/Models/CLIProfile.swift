@@ -135,7 +135,7 @@ extension CLIProfile {
             promptFlag: "-p",
             modelFlag: "--model",
             promptMode: .inline,
-            defaultModel: "opus-4.6"
+            defaultModel: "claude-4.6-opus-max-thinking"
         ),
         codex: ToolCLIConfig(
             executable: "codex",
@@ -159,7 +159,7 @@ extension CLIProfile {
             promptFlag: "-p",
             modelFlag: "--model",
             promptMode: .inline,
-            defaultModel: "opus-4.6"
+            defaultModel: "claude-4.6-opus-max-thinking"
         )
     )
 
@@ -172,7 +172,7 @@ extension CLIProfile {
             promptFlag: "-p",
             modelFlag: "--model",
             promptMode: .inline,
-            defaultModel: "opus-4.6"
+            defaultModel: "claude-4.6-opus-max-thinking"
         ),
         codex: ToolCLIConfig(
             executable: "codex-internal",
@@ -196,7 +196,7 @@ extension CLIProfile {
             promptFlag: "-p",
             modelFlag: "--model",
             promptMode: .inline,
-            defaultModel: "opus-4.6"
+            defaultModel: "claude-4.6-opus-max-thinking"
         )
     )
 

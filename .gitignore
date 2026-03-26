@@ -41,10 +41,8 @@ fastlane/test_output
 # IDE
 .vscode/
 .idea/
+.agentcrew/
 
 # Sensitive files
 .env
 .env.*
-
-# Local docs
-docs/

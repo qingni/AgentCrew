@@ -123,7 +123,7 @@ struct LLMConfig: Codable, Sendable {
     var customPolicy: String
 
     static let defaultAgent = LLMConfig(
-        model: "opus-4.6",
+        model: "claude-4.6-opus-max-thinking",
         customPolicy: ""
     )
 

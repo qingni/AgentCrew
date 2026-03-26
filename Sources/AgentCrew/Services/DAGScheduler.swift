@@ -57,6 +57,7 @@ final class DAGScheduler: @unchecked Sendable {
 
     func executePipeline(
         _ pipeline: Pipeline,
+        sharedStateExecutionContext: SharedStateExecutionContext,
         executionControl: ExecutionControl? = nil,
         onStepStatusChanged: @escaping @Sendable (UUID, StepStatus) -> Void,
         onStepOutput: @escaping @Sendable (UUID, String) -> Void
@@ -68,13 +69,24 @@ final class DAGScheduler: @unchecked Sendable {
         var finalizedStatuses: [UUID: StepStatus] = [:]
         var allResults: [StepResult] = []
         let workDir = pipeline.workingDirectory
+        let runContext = RunContextStore(steps: allSteps, workingDirectory: workDir)
+        let sharedState = SharedStateStore(
+            steps: allSteps,
+            workingDirectory: workDir,
+            pipelineName: pipeline.name,
+            executionContext: sharedStateExecutionContext
+        )
+        var waveIndex = 0
 
         while finalizedStatuses.count < allSteps.count {
             if await executionControl?.isPipelineStopRequested() == true {
                 for resolved in allSteps where finalizedStatuses[resolved.step.id] == nil {
                     finalizedStatuses[resolved.step.id] = .skipped
                     onStepStatusChanged(resolved.step.id, .skipped)
+                    await runContext.markStatus(stepID: resolved.step.id, status: .skipped)
                 }
+                await runContext.writeMirrorFileIfNeeded()
+                await sharedState.writeMirrorFilesIfNeeded(force: true)
                 throw SchedulerError.cancelled
             }
 
@@ -93,6 +105,7 @@ final class DAGScheduler: @unchecked Sendable {
                 if await executionControl?.isStageStopRequested(resolved.stageID) == true {
                     finalizedStatuses[resolved.step.id] = .skipped
                     onStepStatusChanged(resolved.step.id, .skipped)
+                    await runContext.markStatus(stepID: resolved.step.id, status: .skipped)
                     skippedAnyReadyStep = true
                     continue
                 }
@@ -104,6 +117,7 @@ final class DAGScheduler: @unchecked Sendable {
                 if blockedByDependency {
                     finalizedStatuses[resolved.step.id] = .skipped
                     onStepStatusChanged(resolved.step.id, .skipped)
+                    await runContext.markStatus(stepID: resolved.step.id, status: .skipped)
                     skippedAnyReadyStep = true
                     continue
                 }
@@ -118,49 +132,83 @@ final class DAGScheduler: @unchecked Sendable {
                 throw SchedulerError.cyclicDependency
             }
 
+            var runnableWave: [(resolved: ResolvedStep, step: PipelineStep)] = []
+            var waveResults: [StepResult] = []
+            let sharedStateSnapshot = await sharedState.freezeSnapshot(for: waveIndex)
+
             for resolved in wave {
-                onStepStatusChanged(resolved.step.id, .running)
+                do {
+                    var executableStep = resolved.step
+                    let promptWithRunContext = try await runContext.renderPrompt(for: resolved.step)
+                    executableStep.prompt = await sharedState.composePrompt(
+                        basePrompt: promptWithRunContext,
+                        for: resolved.step,
+                        snapshot: sharedStateSnapshot
+                    )
+                    runnableWave.append((resolved: resolved, step: executableStep))
+                } catch {
+                    let message = "Prompt context resolution failed: \(error.localizedDescription)"
+                    onStepOutput(resolved.step.id, message)
+                    waveResults.append(
+                        StepResult(
+                            stepID: resolved.step.id,
+                            exitCode: -2,
+                            output: "",
+                            error: message
+                        )
+                    )
+                }
             }
 
-            let waveResults = await withTaskGroup(
-                of: StepResult.self,
-                returning: [StepResult].self
-            ) { group in
-                for resolved in wave {
-                    let step = resolved.step
-                    let stepID = resolved.step.id
-                    group.addTask {
-                        await Self.executeStep(
-                            step,
-                            stageID: resolved.stageID,
-                            workingDirectory: workDir,
-                            executionControl: executionControl,
-                            onOutputChunk: { chunk in
-                                onStepOutput(stepID, chunk)
-                            }
-                        )
+            for item in runnableWave {
+                onStepStatusChanged(item.resolved.step.id, .running)
+                await runContext.markStatus(stepID: item.resolved.step.id, status: .running)
+            }
+
+            if !runnableWave.isEmpty {
+                let executedResults = await withTaskGroup(
+                    of: StepResult.self,
+                    returning: [StepResult].self
+                ) { group in
+                    for item in runnableWave {
+                        let stepID = item.resolved.step.id
+                        group.addTask {
+                            await Self.executeStep(
+                                item.step,
+                                stageID: item.resolved.stageID,
+                                workingDirectory: workDir,
+                                executionControl: executionControl,
+                                onOutputChunk: { chunk in
+                                    onStepOutput(stepID, chunk)
+                                }
+                            )
+                        }
                     }
+                    var results: [StepResult] = []
+                    for await result in group {
+                        results.append(result)
+                    }
+                    return results
                 }
-                var results: [StepResult] = []
-                for await result in group {
-                    results.append(result)
-                }
-                return results
+                waveResults.append(contentsOf: executedResults)
             }
 
             var shouldStop = false
             for result in waveResults {
                 allResults.append(result)
+                await runContext.recordResult(stepID: result.stepID, result: result)
 
                 if result.cancelledByUser {
                     finalizedStatuses[result.stepID] = .skipped
                     onStepStatusChanged(result.stepID, .skipped)
+                    await runContext.markStatus(stepID: result.stepID, status: .skipped)
                     continue
                 }
 
                 if result.failed {
                     finalizedStatuses[result.stepID] = .failed
                     onStepStatusChanged(result.stepID, .failed)
+                    await runContext.markStatus(stepID: result.stepID, status: .failed)
                     let step = stepsByID[result.stepID]
                     if !(step?.continueOnFailure ?? false) {
                         shouldStop = true
@@ -168,14 +216,22 @@ final class DAGScheduler: @unchecked Sendable {
                 } else {
                     finalizedStatuses[result.stepID] = .completed
                     onStepStatusChanged(result.stepID, .completed)
+                    await runContext.markStatus(stepID: result.stepID, status: .completed)
                 }
             }
+
+            _ = await sharedState.mergeWaveResults(waveResults, waveIndex: waveIndex)
+            await runContext.writeMirrorFileIfNeeded()
+            await sharedState.writeMirrorFilesIfNeeded()
 
             if shouldStop {
                 for resolved in allSteps where finalizedStatuses[resolved.step.id] == nil {
                     finalizedStatuses[resolved.step.id] = .skipped
                     onStepStatusChanged(resolved.step.id, .skipped)
+                    await runContext.markStatus(stepID: resolved.step.id, status: .skipped)
                 }
+                await runContext.writeMirrorFileIfNeeded()
+                await sharedState.writeMirrorFilesIfNeeded(force: true)
                 if let failed = waveResults.first(where: { $0.failed }) {
                     throw SchedulerError.stepFailed(failed)
                 }
@@ -185,11 +241,18 @@ final class DAGScheduler: @unchecked Sendable {
                 for resolved in allSteps where finalizedStatuses[resolved.step.id] == nil {
                     finalizedStatuses[resolved.step.id] = .skipped
                     onStepStatusChanged(resolved.step.id, .skipped)
+                    await runContext.markStatus(stepID: resolved.step.id, status: .skipped)
                 }
+                await runContext.writeMirrorFileIfNeeded()
+                await sharedState.writeMirrorFilesIfNeeded(force: true)
                 throw SchedulerError.cancelled
             }
+
+            waveIndex += 1
         }
 
+        await runContext.writeMirrorFileIfNeeded(force: true)
+        await sharedState.writeMirrorFilesIfNeeded(force: true)
         return allResults
     }
 

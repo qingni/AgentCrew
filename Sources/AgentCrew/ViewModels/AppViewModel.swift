@@ -177,6 +177,11 @@ final class AppViewModel: ObservableObject {
     private let planner = AIPlanner()
     private let maxRunHistoryPerPipeline = 3
     private let maxStoredStepOutputLength = 120_000
+    private let maxIssueSummaryLength = 5_000
+    private let maxIssueFailedStepsInSummary = 3
+    private let maxIssueStepExcerptLength = 1_600
+    private let maxIssueDependencyExcerptLength = 500
+    private let maxIssueDependenciesPerStep = 2
     private let maxPlanningLogLength = 80_000
     private let defaultAgentMaxRounds = 4
     private let recommendationStrongThreshold = 65
@@ -994,6 +999,7 @@ final class AppViewModel: ObservableObject {
             for: pipelineID,
             orchestrationMode: .pipeline
         )
+        let rootSessionID = runID ?? UUID()
         let ref = WeakVM(vm: self)
         var finalRunStatus: PipelineRunStatus = .completed
         var finalErrorMessage: String?
@@ -1001,6 +1007,11 @@ final class AppViewModel: ObservableObject {
         do {
             _ = try await scheduler.executePipeline(
                 pipelineSnapshot,
+                sharedStateExecutionContext: SharedStateExecutionContext(
+                    rootSessionID: rootSessionID,
+                    roundIndex: 0,
+                    orchestrationMode: .pipeline
+                ),
                 executionControl: control,
                 onStepStatusChanged: { id, status in
                     Task { @MainActor in
@@ -1159,6 +1170,7 @@ final class AppViewModel: ObservableObject {
             let outcome = await executePipelineSnapshot(
                 plannedPipeline,
                 rootPipelineID: pipelineID,
+                rootSessionID: session.id,
                 control: control,
                 roundIndex: roundIndex,
                 strategy: roundStrategy
@@ -1395,6 +1407,7 @@ final class AppViewModel: ObservableObject {
             let outcome = await executePipelineSnapshot(
                 plannedPipeline,
                 rootPipelineID: pipelineID,
+                rootSessionID: session.id,
                 control: control,
                 roundIndex: roundIndex,
                 strategy: roundStrategy
@@ -2064,11 +2077,17 @@ final class AppViewModel: ObservableObject {
             pipelineSnapshot: retrySnapshot,
             orchestrationMode: .pipeline
         )
+        let rootSessionID = runID ?? UUID()
         let ref = WeakVM(vm: self)
 
         do {
             _ = try await scheduler.executePipeline(
                 retrySnapshot,
+                sharedStateExecutionContext: SharedStateExecutionContext(
+                    rootSessionID: rootSessionID,
+                    roundIndex: 0,
+                    orchestrationMode: .pipeline
+                ),
                 executionControl: control,
                 onStepStatusChanged: { id, status in
                     Task { @MainActor in
@@ -2273,6 +2292,7 @@ final class AppViewModel: ObservableObject {
     private func executePipelineSnapshot(
         _ pipelineSnapshot: Pipeline,
         rootPipelineID: UUID,
+        rootSessionID: UUID,
         control: ExecutionControl,
         roundIndex: Int? = nil,
         strategy: AgentRepairStrategy? = nil
@@ -2294,6 +2314,11 @@ final class AppViewModel: ObservableObject {
         do {
             _ = try await scheduler.executePipeline(
                 pipelineSnapshot,
+                sharedStateExecutionContext: SharedStateExecutionContext(
+                    rootSessionID: rootSessionID,
+                    roundIndex: roundIndex ?? 0,
+                    orchestrationMode: roundIndex == nil ? .pipeline : .agent
+                ),
                 executionControl: control,
                 onStepStatusChanged: { id, status in
                     Task { @MainActor in
@@ -2695,7 +2720,11 @@ final class AppViewModel: ObservableObject {
         let sourceStage = basePipeline.stages[stageIndex]
         guard let failedStepIndex = sourceStage.steps.firstIndex(where: { $0.id == failedStepRun.stepID }) else { return nil }
         let failedStep = sourceStage.steps[failedStepIndex]
-        let issueSummary = buildIssueSummary(from: previousRun, fallbackError: previousError)
+        let issueSummary = buildIssueSummary(
+            from: previousRun,
+            basePipeline: basePipeline,
+            fallbackError: previousError
+        )
         let instructionText = humanInstruction?
             .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         let humanInstructionSection = instructionText.isEmpty
@@ -2775,7 +2804,11 @@ final class AppViewModel: ObservableObject {
         previousError: String?,
         humanInstruction: String?
     ) -> Pipeline {
-        let issueSummary = buildIssueSummary(from: previousRun, fallbackError: previousError)
+        let issueSummary = buildIssueSummary(
+            from: previousRun,
+            basePipeline: basePipeline,
+            fallbackError: previousError
+        )
         let instructionText = humanInstruction?
             .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         let humanInstructionSection = instructionText.isEmpty
@@ -2847,38 +2880,113 @@ final class AppViewModel: ObservableObject {
         )
     }
 
-    private func buildIssueSummary(from run: PipelineRunRecord?, fallbackError: String?) -> String {
-        var lines: [String] = []
+    private func buildIssueSummary(
+        from run: PipelineRunRecord?,
+        basePipeline: Pipeline?,
+        fallbackError: String?
+    ) -> String {
+        var sections: [String] = []
 
         if let run {
-            let failedSteps = run.stageRuns
-                .flatMap(\.stepRuns)
-                .filter { $0.status == .failed }
+            let allStepRuns = run.stageRuns.flatMap(\.stepRuns)
+            let failedSteps = allStepRuns.filter { $0.status == .failed }
+            let failedStepNames = failedSteps.map(\.stepName)
+            let stepRunByID = Dictionary(uniqueKeysWithValues: allStepRuns.map { ($0.stepID, $0) })
+            let dependencyMap = issueDependencyMap(for: basePipeline)
 
             if !failedSteps.isEmpty {
-                lines.append("Failed steps: \(failedSteps.map(\.stepName).joined(separator: ", "))")
-                for step in failedSteps.prefix(2) {
-                    if let output = step.output?.trimmingCharacters(in: .whitespacesAndNewlines), !output.isEmpty {
-                        let compact = output.replacingOccurrences(of: "\n", with: " ")
-                        lines.append("- \(step.stepName): \(String(compact.prefix(300)))")
+                sections.append("Failed steps (\(failedSteps.count)): \(failedStepNames.joined(separator: ", "))")
+
+                for failedStep in failedSteps.prefix(maxIssueFailedStepsInSummary) {
+                    var blockLines: [String] = []
+                    blockLines.append("- Step: \(failedStep.stepName)")
+
+                    let excerpt = issueExcerpt(from: failedStep.output, maxChars: maxIssueStepExcerptLength)
+                    if !excerpt.isEmpty {
+                        blockLines.append("  Output excerpt: \(excerpt)")
                     }
+
+                    let dependencyStepIDs = dependencyMap[failedStep.stepID] ?? []
+                    if !dependencyStepIDs.isEmpty {
+                        let dependencyLines = dependencyStepIDs
+                            .prefix(maxIssueDependenciesPerStep)
+                            .compactMap { dependencyID -> String? in
+                                guard let dependencyRun = stepRunByID[dependencyID] else { return nil }
+                                let dependencyExcerpt = issueExcerpt(
+                                    from: dependencyRun.output,
+                                    maxChars: maxIssueDependencyExcerptLength
+                                )
+                                if dependencyExcerpt.isEmpty {
+                                    return "\(dependencyRun.stepName) (status: \(dependencyRun.status.rawValue))"
+                                }
+                                return "\(dependencyRun.stepName): \(dependencyExcerpt)"
+                            }
+
+                        if !dependencyLines.isEmpty {
+                            blockLines.append("  Dependency context:")
+                            for dependencyLine in dependencyLines {
+                                blockLines.append("    - \(dependencyLine)")
+                            }
+                        }
+                    }
+
+                    sections.append(blockLines.joined(separator: "\n"))
                 }
             }
 
-            if let errorMessage = run.errorMessage, !errorMessage.isEmpty {
-                lines.append("Run error: \(errorMessage)")
+            if let errorMessage = run.errorMessage?.trimmingCharacters(in: .whitespacesAndNewlines), !errorMessage.isEmpty {
+                sections.append("Run error: \(errorMessage)")
             }
         }
 
-        if let fallbackError, !fallbackError.isEmpty {
-            lines.append("Fallback error: \(fallbackError)")
+        if let fallbackError = fallbackError?.trimmingCharacters(in: .whitespacesAndNewlines), !fallbackError.isEmpty {
+            sections.append("Fallback error: \(fallbackError)")
         }
 
-        if lines.isEmpty {
-            lines.append("No detailed failure context is available.")
+        if sections.isEmpty {
+            sections.append("No detailed failure context is available.")
         }
 
-        return lines.joined(separator: "\n")
+        let summary = sections.joined(separator: "\n\n")
+        return trimmedIssueSummary(summary)
+    }
+
+    private func issueDependencyMap(for pipeline: Pipeline?) -> [UUID: [UUID]] {
+        guard let pipeline else { return [:] }
+        let resolvedSteps = pipeline.allStepsWithResolvedDependencies()
+        let orderByStepID = Dictionary(uniqueKeysWithValues: pipeline.allSteps.enumerated().map { ($1.id, $0) })
+
+        return Dictionary(uniqueKeysWithValues: resolvedSteps.map { resolved in
+            let orderedDeps = resolved.allDependencies.sorted { lhs, rhs in
+                let lhsOrder = orderByStepID[lhs] ?? .max
+                let rhsOrder = orderByStepID[rhs] ?? .max
+                return lhsOrder < rhsOrder
+            }
+            return (resolved.step.id, orderedDeps)
+        })
+    }
+
+    private func issueExcerpt(from raw: String?, maxChars: Int) -> String {
+        guard let raw = raw?.trimmingCharacters(in: .whitespacesAndNewlines), !raw.isEmpty else {
+            return ""
+        }
+
+        let compact = raw
+            .replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+
+        guard compact.count > maxChars else { return compact }
+        let tail = String(compact.suffix(maxChars))
+        return "...\(tail)"
+    }
+
+    private func trimmedIssueSummary(_ summary: String) -> String {
+        guard summary.count > maxIssueSummaryLength else { return summary }
+        let tail = String(summary.suffix(maxIssueSummaryLength))
+        return """
+        ...issue summary truncated...
+        \(tail)
+        """
     }
 
     private func containsAnyKeyword(in text: String, keywords: [String]) -> Bool {
