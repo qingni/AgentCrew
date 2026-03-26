@@ -41,12 +41,13 @@ AgentCrew 并非要替代某一个具体的 AI 聊天工具，而是提供一个
 
 ### 🛠️ 多模型 & 多 CLI 混合编排
 - **深度兼容 AI 工具**：原生支持 `Cursor/cursor-agent`、`Claude`、`Codex` 等大模型 CLI。
-- **极简 CLI 配置**：提供一键开关，轻松在开源版与内部特供版 CLI 命令间无缝切换，内置环境探针自动完成路径解析。
+- **极简 CLI Environment 配置**：提供一键切换标准 / Internal 命令模式；当前主要影响 `Codex` 与 `Claude`，`Cursor` 保持固定命令模式，内置环境探针自动完成路径解析。
 
 ### 🔌 万物编排：原生支持任意传统 CLI
 打破“仅限 AI 工具”的局限，AgentCrew 底层拥有强大的通用执行器，通过以下架构机制实现万物编排：
 - **无缝接入现有工具链**：完美支持 `git`、`npm`、`python`、`docker`、`ffmpeg` 等任意能在 macOS 终端运行的命令。
 - **与大模型互通**：支持将提示词以占位符（`{{prompt}}`）或标准输入（stdin）安全传导给 Shell 脚本；同时支持在 Step Prompt 中引用前序依赖步骤上下文（如 `{{step:Design.summary}}`）。
+- **结构化运行记忆与共享状态**：后续 Step 可沿依赖链读取前序 Step 的 `summary` / `decisions` / `artifacts` / `output.tail` 等结构化上下文；同一 `rootSessionID` 下的共享状态还可跨 Step、跨 Round 继续复用。
 - **无限混合编排**：例如用 Cursor 编写代码，跑 `npm run test` 验证，失败时由 Agent 自动抓取报错让 Claude 分析并生成 Patch，最后由自定义 Shell 脚本完成部署。
 
 ### 📊 模式洞察与智能推荐 (Mode Insights & Recommendation)
@@ -204,7 +205,7 @@ swift run AgentCrew
 双击 `Package.swift` 打开项目，选择你的 Mac 作为运行目标，点击 `Run (Cmd + R)`。
 
 ### 3. 使用指南
-1. 启动 App 后，前往 `Settings` 确认已正确检测到本机的 **CLI Profile**。
+1. 启动 App 后，前往 `Settings` 确认已正确检测到本机的 **CLI Environment**，并按需切换标准 / Internal 命令模式（主要影响 `Codex` 与 `Claude`）。
 2. 点击侧边栏底部的 `+` 选择一个本地代码仓库。
 3. 点击 **AI Pipeline Generator**，输入你的任务需求，或手动创建 Pipeline。
 4. 在 Pipeline 编辑器中检查各个 Step 的 Tool 和 Prompt（命令会根据环境自动生成，也可在 Advanced 中手写覆盖）。
@@ -295,6 +296,8 @@ flowchart TB
 - `Services/DAGScheduler.swift`: 负责解析依赖关系与波次 (Wave) 并行调度。
 - `Services/AIPlanner.swift`: 负责与大模型交互，将自然语言转化为结构化执行步骤。
 - `Services/CLIProfileManager.swift`: 负责不同环境 CLI 命令参数的自适应装配。
+- `Services/RunContextStore.swift`: 负责依赖链范围内的 `{{step:...}}` 模板解析、摘要 / decisions / artifacts 提取，以及 `.agentcrew/context.md` 镜像。
+- `Services/SharedStateStore.swift`: 负责 wave snapshot、共享状态 brief 注入、`step-outbox` merge，以及同一 `rootSessionID` 下的跨 round 结构化状态持久化。
 - `ViewModels/AppViewModel.swift`: 全局状态管理、会话生命周期与模式回退分析。
 
 ### 🔌 万物皆可编排：支持任意传统 CLI 的底层架构揭秘
@@ -318,9 +321,9 @@ flowchart TB
    )
    ```
 3. **数据传导：安全转义与 Stdin**
-   系统支持 `{{prompt}}` 占位符内联替换，自动对其进行安全的 Shell 转义（`shellQuote`）；若命令中没有写占位符，也会将提示词和前序输出作为标准输入流 (`stdin`) 直接喂给该命令。
+   系统支持 `{{prompt}}` 占位符内联替换，自动对其进行安全的 Shell 转义（`shellQuote`）；若命令中没有写占位符，则只会将当前 Step 的 Prompt 作为标准输入流 (`stdin`) 传给该命令。前序依赖步骤上下文不会自动拼进 `stdin`，而是通过 `{{step:...}}` 与共享状态注入到 Prompt。
 
-4. **Step 级运行记忆：确定性上下文注入**
+4. **Step 级运行记忆：RunContext 确定性注入**
    在 Pipeline Prompt 中可使用运行期模板变量读取依赖步骤的结构化记忆（由调度器注入，而非依赖 Agent 自觉读取文件）：
    - `{{step:<step-name-or-uuid>.summary}}`
    - `{{step:<step-name-or-uuid>.decisions}}`
@@ -329,7 +332,11 @@ flowchart TB
    - `{{step:<step-name-or-uuid>.error.tail:2000}}`
    - `{{pipeline.failed_steps}}` / `{{pipeline.last_failed.summary}}`
 
-5. **运行期上下文镜像（M3）**
+5. **跨 Step / 跨 Round 的共享状态（SharedState）**
+   除了 `RunContext` 外，调度器还会在每个 Wave 开始前冻结 `SharedStateSnapshot`，把同一 `rootSessionID` 下仍然有效的结构化共享状态以 brief 形式附加到 Step Prompt。  
+   Step 可通过 `step-outbox` JSON 上报 `decision` / `fact` / `artifactRef` / `issue` / `resource`，由 `SharedStateStore` 在 wave 结束后统一 merge；主要支持 `dependencyChain` 与 `pipeline` 两种可见性，并落盘到 `.agentcrew/runs/<rootSessionID>/shared-state.json`（同时生成 `shared-state.md` 镜像）。
+
+6. **运行期上下文镜像（M3）**
    每次执行会将当前 Run 的结构化上下文镜像到工作目录下 `.agentcrew/context.md`，用于调试、审计与人工介入。  
    注意：执行期模板解析的真源是内存态 `RunContextStore`，`context.md` 是可视化镜像层。
 

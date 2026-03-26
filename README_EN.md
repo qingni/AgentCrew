@@ -41,12 +41,13 @@ Simply input a natural language requirement (e.g., "Add JWT user authentication 
 
 ### 🛠️ Multi-Model & Multi-CLI Hybrid Orchestration
 - **Deep AI Tool Compatibility**: Natively supports LLM CLIs like `Cursor/cursor-agent`, `Claude`, and `Codex`.
-- **Minimalist CLI Configuration**: Provides a one-click toggle to seamlessly switch between open-source and internal CLI commands, with a built-in environment probe for automatic path resolution.
+- **Minimal CLI Environment Setup**: Provides a one-click toggle between standard and internal command mappings. This currently mainly affects `Codex` and `Claude`, while `Cursor` stays on a fixed command mode, with built-in environment probing for path resolution.
 
 ### 🔌 Universal Orchestration: Native Support for ANY Traditional CLI
 Breaking the "AI tools only" limitation, AgentCrew's underlying architecture features a powerful universal executor:
 - **Seamless Integration**: Perfectly supports `git`, `npm`, `python`, `docker`, `ffmpeg`, or any command runnable in the macOS terminal.
-- **Interoperability with LLMs**: Safely passes prompts or outputs from previous AI nodes to shell scripts via placeholders (`{{prompt}}`) or standard input (stdin).
+- **Interoperability with LLMs**: Safely passes the current step prompt to shell scripts via placeholders (`{{prompt}}`) or standard input (stdin), and also lets prompts reference structured context from dependency steps.
+- **Structured Execution Memory & Shared State**: Downstream steps can read summaries, decisions, artifacts, and output tails from dependency steps, while reusable shared state can persist across steps and rounds within the same root session.
 - **Infinite Hybrid Orchestration**: For example, use Cursor to write code, run `npm run test` to verify, and if it fails, trigger the Agent to capture the error, ask Claude to analyze and generate a patch, and finally use a custom shell script to deploy.
 
 ### 📊 Mode Insights & Recommendation
@@ -114,7 +115,7 @@ swift run AgentCrew
 Double-click `Package.swift` to open the project, select your Mac as the run destination, and click `Run (Cmd + R)`.
 
 ### 3. Usage Guide
-1. Launch the app and go to `Settings` to ensure your local **CLI Profile** is correctly detected.
+1. Launch the app and go to `Settings` to ensure your local **CLI Environment** is correctly detected, then switch between standard and internal command modes as needed (mainly for `Codex` and `Claude`).
 2. Click the `+` at the bottom of the sidebar to select a local code repository.
 3. Click **AI Pipeline Generator**, enter your task requirement, or manually create a Pipeline.
 4. Review the Tool and Prompt for each Step in the Pipeline Editor (commands are auto-generated but can be overridden in Advanced settings).

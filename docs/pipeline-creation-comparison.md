@@ -1,6 +1,6 @@
 # Pipeline 创建方式对比流程图
 
-> 用于组会分享展示。推荐使用支持 Mermaid 的工具渲染（如 Cursor 预览、Typora、GitHub、VS Code Mermaid 插件等）。
+> 推荐使用支持 Mermaid 的工具渲染（如 Cursor 预览、Typora、GitHub、VS Code Mermaid 插件等）。
 
 ```mermaid
 flowchart TB
