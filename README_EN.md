@@ -46,8 +46,8 @@ Simply input a natural language requirement (e.g., "Add JWT user authentication 
 ### 🔌 Universal Orchestration: Native Support for ANY Traditional CLI
 Breaking the "AI tools only" limitation, AgentCrew's underlying architecture features a powerful universal executor:
 - **Seamless Integration**: Perfectly supports `git`, `npm`, `python`, `docker`, `ffmpeg`, or any command runnable in the macOS terminal.
-- **Interoperability with LLMs**: Safely passes the current step prompt to shell scripts via placeholders (`{{prompt}}`) or standard input (stdin), and also lets prompts reference structured context from dependency steps.
-- **Structured Execution Memory & Shared State**: Downstream steps can read summaries, decisions, artifacts, and output tails from dependency steps, while reusable shared state can persist across steps and rounds within the same root session.
+- **Interoperability with LLMs**: Safely passes the current step prompt to shell scripts via placeholders (`{{prompt}}`) or standard input (stdin), while still allowing prompts to reference dependency-step context when needed.
+- **Structured Context Injection**: Instead of blindly piping raw stdout from one step to the next, AgentCrew injects structured execution memory and shared state on demand for better readability, cost control, and safety.
 - **Infinite Hybrid Orchestration**: For example, use Cursor to write code, run `npm run test` to verify, and if it fails, trigger the Agent to capture the error, ask Claude to analyze and generate a patch, and finally use a custom shell script to deploy.
 
 ### 📊 Mode Insights & Recommendation
@@ -55,6 +55,29 @@ Breaking the "AI tools only" limitation, AgentCrew's underlying architecture fea
 - **Mode Insights Dashboard**: Built-in analytics dashboard visualizing recommendation adoption rates, mode distribution, and 7-day trends. Supports exporting detailed logs for team retrospectives and engine tuning.
 
 <img src="./Images/mode-insights.png" alt="Mode Insights Dashboard" width="800" />
+
+---
+
+## 🧠 Structured Memory & Shared State
+
+AgentCrew does not mechanically dump the full stdout of one step into the next. Instead, it distills execution results into **structured context** and injects only the parts that are actually useful for downstream prompts.
+
+### Two Layers
+- **RunContext**: Handles **within-run dependency-chain passing**. Downstream steps can read fields such as `summary`, `decisions`, `artifacts`, `output.tail`, and `error.tail` from upstream dependency steps.
+- **SharedState**: Handles **reusable state across steps, stages, and rounds**. Within the same `rootSessionID`, still-valid `decision`, `fact`, `artifactRef`, `issue`, and `resource` entries can be reused by later execution rounds.
+
+### Why It Matters
+- **Cleaner prompts**: By default, prompts receive summaries, decisions, and key artifacts rather than noisy process logs.
+- **Clearer boundaries**: `{{step:...}}` only reads from dependency-chain steps, so context does not spread without control.
+- **More stable multi-round execution**: In Agent mode, shared state can survive across rounds in the same root session, so the system does not need to re-understand everything from scratch.
+- **Better debugging**: Runtime context is mirrored to `.agentcrew/context.md`, while shared state is persisted to `.agentcrew/runs/<rootSessionID>/shared-state.json` and mirrored to `shared-state.md`.
+
+### How To Use It
+- Reference structured context inside prompts: `{{step:Design.summary}}`, `{{step:Review.output.tail:500}}`
+- Read pipeline-level runtime state: `{{pipeline.failed_steps}}`, `{{pipeline.last_failed.summary}}`
+- When a step needs to publish reusable state explicitly, write `step-outbox` JSON and let the scheduler merge it after the wave finishes
+
+For the full design walkthrough, see `docs/shared-state-overview.md`.
 
 ---
 
@@ -121,6 +144,99 @@ Double-click `Package.swift` to open the project, select your Mac as the run des
 4. Review the Tool and Prompt for each Step in the Pipeline Editor (commands are auto-generated but can be overridden in Advanced settings).
 5. Select `Pipeline` or `Agent` mode in the top right corner.
 6. Click **Run** and watch the magic happen! 📈
+
+---
+
+## 🏗️ Architecture
+
+This project is built with SwiftUI and organized into clear orchestration layers:
+
+```mermaid
+flowchart TB
+    classDef layer_ui fill:#e3f2fd,stroke:#1976d2,stroke-width:2px,color:#0d47a1,rx:5px,ry:5px
+    classDef layer_vm fill:#f3e5f5,stroke:#7b1fa2,stroke-width:2px,color:#4a148c,rx:5px,ry:5px
+    classDef layer_core fill:#e8f5e9,stroke:#388e3c,stroke-width:2px,color:#1b5e20,rx:5px,ry:5px
+    classDef layer_runner fill:#fff8e1,stroke:#ffa000,stroke-width:2px,color:#ff6f00,rx:5px,ry:5px
+    classDef layer_runner_base fill:#ffecb3,stroke:#f57f17,stroke-width:2px,color:#bf360c,rx:5px,ry:5px
+    classDef layer_data fill:#e0f7fa,stroke:#0097a7,stroke-width:2px,color:#006064,rx:5px,ry:5px
+
+    subgraph UI ["UI Layer (SwiftUI)"]
+        direction LR
+        ContentView["Main View"]:::layer_ui
+        PipelineEditor["Pipeline Editor"]:::layer_ui
+        Flowchart["Visual DAG Graph"]:::layer_ui
+        Monitor["Execution Monitor"]:::layer_ui
+    end
+
+    subgraph VM ["ViewModel Layer"]
+        AppViewModel["AppViewModel<br/>Global state & lifecycle"]:::layer_vm
+    end
+
+    subgraph Core ["Core Orchestration"]
+        DAGScheduler["DAGScheduler<br/>Dependency resolution & waves"]:::layer_core
+        AIPlanner["AIPlanner<br/>Natural language to pipeline"]:::layer_core
+        CLIProfileManager["CLIProfileManager<br/>CLI environment detection"]:::layer_core
+    end
+
+    subgraph Runners ["Execution Layer"]
+        CLIRunner["CLIRunner<br/>Low-level process runner"]:::layer_runner_base
+        CommandRunner["CommandRunner<br/>Custom command execution"]:::layer_runner
+        ToolRunner["ToolRunner<br/>Built-in tool routing"]:::layer_runner
+
+        Cursor["CursorRunner"]:::layer_runner
+        Claude["ClaudeRunner"]:::layer_runner
+        Codex["CodexRunner"]:::layer_runner
+
+        ToolRunner --> Cursor
+        ToolRunner --> Claude
+        ToolRunner --> Codex
+
+        CommandRunner --> CLIRunner
+        Cursor --> CLIRunner
+        Claude --> CLIRunner
+        Codex --> CLIRunner
+    end
+
+    subgraph Models ["Data Models"]
+        Data["PipelineModels / AgentModels / CLIProfile"]:::layer_data
+    end
+
+    UI -- "User Action" --> VM
+    VM -. "State Binding" .-> UI
+
+    VM -- "Plan / Execute" --> Core
+    Core -- "Dispatch" --> Runners
+
+    Runners -- "Progress / Result" --> VM
+
+    UI -.-> Data
+    VM -.-> Data
+    Core -.-> Data
+    Runners -.-> Data
+
+    style UI fill:#f8f9fa,stroke:#c5cae9,stroke-width:2px,rx:10px,ry:10px,stroke-dasharray: 5 5,color:#333333
+    style VM fill:#f8f9fa,stroke:#c5cae9,stroke-width:2px,rx:10px,ry:10px,stroke-dasharray: 5 5,color:#333333
+    style Core fill:#f8f9fa,stroke:#c5cae9,stroke-width:2px,rx:10px,ry:10px,stroke-dasharray: 5 5,color:#333333
+    style Runners fill:#f8f9fa,stroke:#c5cae9,stroke-width:2px,rx:10px,ry:10px,stroke-dasharray: 5 5,color:#333333
+    style Models fill:#f8f9fa,stroke:#c5cae9,stroke-width:2px,rx:10px,ry:10px,stroke-dasharray: 5 5,color:#333333
+```
+
+Core modules:
+- `Services/DAGScheduler.swift`: Resolves dependencies and schedules wave-based parallel execution.
+- `Services/AIPlanner.swift`: Talks to LLM CLIs and turns natural language tasks into structured pipelines.
+- `Services/CLIProfileManager.swift`: Adapts command generation to the active CLI environment.
+- `Services/RunContextStore.swift`: Resolves `{{step:...}}` references within dependency scope, extracts summaries / decisions / artifacts, and mirrors runtime context to `.agentcrew/context.md`.
+- `Services/SharedStateStore.swift`: Freezes wave snapshots, injects shared-state briefs, merges `step-outbox`, and persists structured state across rounds within the same `rootSessionID`.
+- `ViewModels/AppViewModel.swift`: Manages global state, session lifecycle, retries, and mode fallbacks.
+
+### 🔌 Universal Orchestration Internals
+
+1. **Dynamic Routing**
+   Inside `DAGScheduler`, any step with a custom command bypasses the built-in AI runners and goes straight to `CommandRunner`.
+2. **Real Zsh Subprocesses**
+   `CommandRunner` executes commands via `zsh -lc`, preserving shell startup behavior and using `command -v` to resolve real executable paths before launch.
+3. **Prompt Delivery**
+   If a command contains `{{prompt}}`, the prompt is safely shell-quoted and inlined. Otherwise, only the current step prompt is sent through stdin.
 
 ---
 

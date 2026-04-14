@@ -47,7 +47,7 @@ AgentCrew 并非要替代某一个具体的 AI 聊天工具，而是提供一个
 打破“仅限 AI 工具”的局限，AgentCrew 底层拥有强大的通用执行器，通过以下架构机制实现万物编排：
 - **无缝接入现有工具链**：完美支持 `git`、`npm`、`python`、`docker`、`ffmpeg` 等任意能在 macOS 终端运行的命令。
 - **与大模型互通**：支持将提示词以占位符（`{{prompt}}`）或标准输入（stdin）安全传导给 Shell 脚本；同时支持在 Step Prompt 中引用前序依赖步骤上下文（如 `{{step:Design.summary}}`）。
-- **结构化运行记忆与共享状态**：后续 Step 可沿依赖链读取前序 Step 的 `summary` / `decisions` / `artifacts` / `output.tail` 等结构化上下文；同一 `rootSessionID` 下的共享状态还可跨 Step、跨 Round 继续复用。
+- **结构化上下文传递**：不是简单把 stdout 串给下一个 Step，而是基于结构化记忆与共享状态做按需注入，兼顾可读性、成本与可控性。
 - **无限混合编排**：例如用 Cursor 编写代码，跑 `npm run test` 验证，失败时由 Agent 自动抓取报错让 Claude 分析并生成 Patch，最后由自定义 Shell 脚本完成部署。
 
 ### 📊 模式洞察与智能推荐 (Mode Insights & Recommendation)
@@ -55,6 +55,29 @@ AgentCrew 并非要替代某一个具体的 AI 聊天工具，而是提供一个
 - **Mode Insights 分析大盘**：内置运行数据分析看板，可视化展示推荐采纳率、模式分布与 7 日趋势。支持导出详细日志，辅助团队复盘与引擎调优。
 
 <img src="./Images/mode-insights.png" alt="模式洞察与分析大盘" width="800" />
+
+---
+
+## 🧠 结构化记忆与共享状态
+
+AgentCrew 不会把前一个 Step 的完整 stdout 机械塞给下一个 Step，而是把运行结果沉淀为**结构化上下文**，只把真正有价值的部分注入后续 Prompt。
+
+### 两层机制
+- **RunContext**：负责**单轮执行内**的依赖链传值。后续 Step 可读取前序依赖 Step 的 `summary`、`decisions`、`artifacts`、`output.tail`、`error.tail` 等字段。
+- **SharedState**：负责**跨 Step / 跨 Stage / 跨 Round** 的可复用状态沉淀。同一 `rootSessionID` 下，仍然有效的 `decision` / `fact` / `artifactRef` / `issue` / `resource` 可被后续执行继续复用。
+
+### 对用户有什么用
+- **Prompt 更干净**：默认传递的是摘要、决策和关键产物，而不是冗长过程日志。
+- **依赖边界更清晰**：`{{step:...}}` 只允许读取依赖链上的 Step，上下文不会无边界扩散。
+- **多轮执行更稳**：Agent 模式下，同一 root session 的共享状态可以跨 round 继承，避免每轮都从零开始理解问题。
+- **调试更方便**：运行时会生成 `.agentcrew/context.md`，共享状态会落盘到 `.agentcrew/runs/<rootSessionID>/shared-state.json`，并同步生成 `shared-state.md` 镜像。
+
+### 怎么使用
+- 在 Step Prompt 中引用结构化上下文：`{{step:Design.summary}}`、`{{step:Review.output.tail:500}}`
+- 读取 pipeline 级运行态：`{{pipeline.failed_steps}}`、`{{pipeline.last_failed.summary}}`
+- 需要显式上报可复用状态时，让 Step 写出 `step-outbox` JSON，由调度器在 wave 结束后统一 merge
+
+更完整的设计说明可见：`docs/shared-state-overview.md`
 
 ---
 
@@ -322,24 +345,6 @@ flowchart TB
    ```
 3. **数据传导：安全转义与 Stdin**
    系统支持 `{{prompt}}` 占位符内联替换，自动对其进行安全的 Shell 转义（`shellQuote`）；若命令中没有写占位符，则只会将当前 Step 的 Prompt 作为标准输入流 (`stdin`) 传给该命令。前序依赖步骤上下文不会自动拼进 `stdin`，而是通过 `{{step:...}}` 与共享状态注入到 Prompt。
-
-4. **Step 级运行记忆：RunContext 确定性注入**
-   在 Pipeline Prompt 中可使用运行期模板变量读取依赖步骤的结构化记忆（由调度器注入，而非依赖 Agent 自觉读取文件）：
-   - `{{step:<step-name-or-uuid>.summary}}`
-   - `{{step:<step-name-or-uuid>.decisions}}`
-   - `{{step:<step-name-or-uuid>.artifacts}}`
-   - `{{step:<step-name-or-uuid>.output.tail:2000}}`
-   - `{{step:<step-name-or-uuid>.error.tail:2000}}`
-   - `{{pipeline.failed_steps}}` / `{{pipeline.last_failed.summary}}`
-
-5. **跨 Step / 跨 Round 的共享状态（SharedState）**
-   除了 `RunContext` 外，调度器还会在每个 Wave 开始前冻结 `SharedStateSnapshot`，把同一 `rootSessionID` 下仍然有效的结构化共享状态以 brief 形式附加到 Step Prompt。  
-   Step 可通过 `step-outbox` JSON 上报 `decision` / `fact` / `artifactRef` / `issue` / `resource`，由 `SharedStateStore` 在 wave 结束后统一 merge；主要支持 `dependencyChain` 与 `pipeline` 两种可见性，并落盘到 `.agentcrew/runs/<rootSessionID>/shared-state.json`（同时生成 `shared-state.md` 镜像）。
-
-6. **运行期上下文镜像（M3）**
-   每次执行会将当前 Run 的结构化上下文镜像到工作目录下 `.agentcrew/context.md`，用于调试、审计与人工介入。  
-   注意：执行期模板解析的真源是内存态 `RunContextStore`，`context.md` 是可视化镜像层。
-
 ---
 
 ## 🤝 参与贡献
